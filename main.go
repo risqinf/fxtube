@@ -28,6 +28,14 @@ func isServerRunning(port string) bool {
 }
 
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "-v", "--version", "version":
+			log.Println("FX Tube v1.4.2 (Ultra Lightweight YouTube Client)")
+			return
+		}
+	}
+
 	port := DefaultPort
 
 	// If instance is already running, just launch the GUI and exit immediately
@@ -45,14 +53,18 @@ func main() {
 
 	app := &App{
 		firefoxProfile: profile,
-		accountMode:    "firefox",
+		accountMode:    "guest",
 		customCookies:  customCookies,
 		mpvSockPath:    mpvSock,
 		streamCache:    make(map[string]StreamCacheItem),
 		feedCache:      make(map[string]FeedCacheItem),
 		qualitiesCache: make(map[string][]string),
+		commentsCache:  make(map[string][]CommentItem),
 		ytdlpSemaphore: make(chan struct{}, 2), // Cap concurrent yt-dlp workers to 2 for CPU stability
 	}
+
+	// Load stored Google profile if available (defaults to Guest)
+	app.loadProfile()
 
 	handler := app.setupRoutes()
 

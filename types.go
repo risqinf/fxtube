@@ -111,4 +111,45 @@ type App struct {
 	remuxMu      sync.Mutex
 
 	ytdlpSemaphore chan struct{} // Concurrency limiter to prevent CPU starvation
+
+	googleProfile GoogleProfile
+	profileMu     sync.RWMutex
+
+	commentsCache map[string][]CommentItem
+	commentsMu    sync.RWMutex
+}
+
+// GoogleProfile represents the logged in Google/YouTube user
+type GoogleProfile struct {
+	Name       string `json:"name"`
+	Handle     string `json:"handle"`
+	Avatar     string `json:"avatar"`
+	ChannelURL string `json:"channel_url"`
+	IsLoggedIn bool   `json:"is_logged_in"`
+}
+
+// CommentItem represents a single YouTube video comment
+type CommentItem struct {
+	Author string `json:"author"`
+	Avatar string `json:"avatar"`
+	Text   string `json:"text"`
+	Time   string `json:"time"`
+	Likes  string `json:"likes"`
+}
+
+// CreateCommentRequest payload for posting comments
+type CreateCommentRequest struct {
+	VideoURL string `json:"video_url"`
+	VideoID  string `json:"video_id"`
+	Text     string `json:"text"`
+}
+
+// GoogleLoginRequest payload for logging in to Google / YouTube
+type GoogleLoginRequest struct {
+	Type       string `json:"type"`        // "handle", "channel_url", "browser", "manual"
+	Handle     string `json:"handle"`      // e.g. "@risqinf"
+	Name       string `json:"name"`
+	Avatar     string `json:"avatar"`
+	ChannelURL string `json:"channel_url"`
+	Browser    string `json:"browser"`     // "firefox", "chrome", "brave"
 }

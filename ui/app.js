@@ -13,7 +13,11 @@ let currentAvailableQualities = ['144', '240', '360', '480', '720', '1080'];
 
 let selectedQuality = localStorage.getItem('fxtube_quality') || '480';
 let autoplayEnabled = localStorage.getItem('fxtube_autoplay') !== 'false';
-let accountMode = localStorage.getItem('fxtube_account_mode') || 'firefox';
+let accountMode = localStorage.getItem('fxtube_account_mode');
+if (!accountMode || accountMode === 'firefox') {
+  accountMode = 'guest';
+  localStorage.setItem('fxtube_account_mode', 'guest');
+}
 let savedMode = localStorage.getItem('fxtube_player_mode');
 if (!savedMode || savedMode === 'mpv') {
   savedMode = 'web';
@@ -504,7 +508,7 @@ function scrollShortNav(dir) {
 function toggleShortLike(btn) {
   btn.classList.toggle('liked');
   if (btn.classList.contains('liked')) {
-    showToast('Disukai! ❤️', '#ef4444');
+    showToast('Disukai!', '#ef4444');
   }
 }
 
@@ -1218,6 +1222,7 @@ async function playEmbeddedVideo(v) {
   currentVideo = v;
   streamTimeOffset = 0;
   switchToWatch();
+  loadVideoComments(v);
   recordLocalHistory(v);
   hideMpvBar();
   hidePlayPrompt();
@@ -1633,10 +1638,10 @@ function openSettingsModal() {
   const modeBadge = document.getElementById('modeStatusBadge');
   const lanSec = document.getElementById('lanAccessSection');
   if (isStandaloneMode) {
-    if (modeBadge) modeBadge.innerText = '🟢 Mode Mandiri (Standalone di HP)';
+    if (modeBadge) modeBadge.innerHTML = '<span class="online-indicator-dot" style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;margin-right:6px;"></span><span>Mode Mandiri (Standalone di HP)</span>';
     if (lanSec) lanSec.style.display = 'none';
   } else {
-    if (modeBadge) modeBadge.innerText = '💻 Mode Server Terhubung';
+    if (modeBadge) modeBadge.innerHTML = '<span class="online-indicator-dot" style="display:inline-block;width:8px;height:8px;background:#38bdf8;border-radius:50%;margin-right:6px;"></span><span>Mode Server Terhubung</span>';
     if (lanSec) lanSec.style.display = 'block';
   }
 
@@ -1820,5 +1825,351 @@ window.onload = async () => {
     });
   } catch (e) {}
 
+  // Fetch Google Profile and update sidebar / auth UI
+  fetchGoogleProfile();
+
   loadTab('home');
 };
+
+// ============================================
+// GOOGLE ACCOUNT & CHANNEL PROFILE MANAGEMENT
+// ============================================
+let currentGoogleProfile = {
+  name: 'Tamu',
+  handle: '@guest',
+  avatar: '',
+  channel_url: '',
+  is_logged_in: false
+};
+
+async function fetchGoogleProfile() {
+  try {
+    const res = await fetch('/api/account/profile');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.profile) {
+        currentGoogleProfile = data.profile;
+        if (data.mode) {
+          accountMode = data.mode;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[FX Tube] Gagal mengambil profil Google:', err);
+  }
+  updateSidebarProfileUI();
+  updateCommentsAuthUI();
+}
+
+function updateSidebarProfileUI() {
+  const guestCard = document.getElementById('sidebarGuestCard');
+  const loggedInCard = document.getElementById('sidebarLoggedInCard');
+  const userAvatar = document.getElementById('sidebarUserAvatar');
+  const fallbackIcon = document.getElementById('sidebarAvatarFallback');
+  const userName = document.getElementById('sidebarUserName');
+  const userHandle = document.getElementById('sidebarUserHandle');
+  const accModeBadge = document.getElementById('accountModeBadge');
+
+  if (currentGoogleProfile && currentGoogleProfile.is_logged_in) {
+    if (guestCard) guestCard.style.display = 'none';
+    if (loggedInCard) loggedInCard.style.display = 'flex';
+    if (userName) userName.innerText = currentGoogleProfile.name || 'Channel Anda';
+    if (userHandle) userHandle.innerText = currentGoogleProfile.handle || '@channel';
+    if (userAvatar) {
+      if (currentGoogleProfile.avatar) {
+        userAvatar.src = currentGoogleProfile.avatar;
+        userAvatar.style.display = 'block';
+        if (fallbackIcon) fallbackIcon.style.display = 'none';
+      } else {
+        userAvatar.style.display = 'none';
+        if (fallbackIcon) fallbackIcon.style.display = 'block';
+      }
+    }
+    if (accModeBadge) accModeBadge.innerText = 'Akun Google';
+  } else {
+    if (guestCard) guestCard.style.display = 'flex';
+    if (loggedInCard) loggedInCard.style.display = 'none';
+    if (accModeBadge) accModeBadge.innerText = 'Mode Tamu';
+  }
+}
+
+function updateCommentsAuthUI() {
+  const guestBanner = document.getElementById('commentGuestBanner');
+  const inputBox = document.getElementById('commentInputBox');
+  const userCommentAvatar = document.getElementById('userCommentAvatar');
+  const userCommentAvatarFallback = document.getElementById('userCommentAvatarPlaceholder');
+
+  if (currentGoogleProfile && currentGoogleProfile.is_logged_in) {
+    if (guestBanner) guestBanner.style.display = 'none';
+    if (inputBox) inputBox.style.display = 'flex';
+    if (userCommentAvatar) {
+      if (currentGoogleProfile.avatar) {
+        userCommentAvatar.src = currentGoogleProfile.avatar;
+        userCommentAvatar.style.display = 'block';
+        if (userCommentAvatarFallback) userCommentAvatarFallback.style.display = 'none';
+      } else {
+        userCommentAvatar.style.display = 'none';
+        if (userCommentAvatarFallback) userCommentAvatarFallback.style.display = 'flex';
+      }
+    }
+  } else {
+    if (guestBanner) guestBanner.style.display = 'flex';
+    if (inputBox) inputBox.style.display = 'none';
+  }
+}
+
+function openUserProfileChannel() {
+  if (currentGoogleProfile && currentGoogleProfile.channel_url) {
+    window.open(currentGoogleProfile.channel_url, '_blank');
+  } else if (currentGoogleProfile && currentGoogleProfile.handle) {
+    window.open(`https://www.youtube.com/${currentGoogleProfile.handle}`, '_blank');
+  } else {
+    openLoginModal();
+  }
+}
+
+function openLoginModal() {
+  const modal = document.getElementById('loginModal');
+  if (modal) {
+    modal.classList.add('active');
+    setTimeout(() => {
+      document.getElementById('loginHandleInput')?.focus();
+    }, 100);
+  }
+}
+
+function closeLoginModal() {
+  const modal = document.getElementById('loginModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function continueAsGuest() {
+  closeLoginModal();
+  showToast('Melanjutkan sebagai Mode Tamu', '#737373');
+}
+
+async function submitHandleLogin() {
+  const input = document.getElementById('loginHandleInput');
+  const handle = input ? input.value.trim() : '';
+  if (!handle) {
+    showToast('Masukkan handle atau URL channel YouTube', '#eab308');
+    return;
+  }
+
+  const btn = document.getElementById('btnSubmitLoginHandle');
+  if (btn) btn.disabled = true;
+  showToast('Menghubungkan channel YouTube...', '#3b82f6');
+
+  try {
+    const res = await fetch('/api/account/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'handle', handle })
+    });
+    const data = await res.json();
+    if (data && data.profile) {
+      currentGoogleProfile = data.profile;
+      accountMode = data.mode || 'google';
+      localStorage.setItem('fxtube_account_mode', accountMode);
+      updateSidebarProfileUI();
+      updateCommentsAuthUI();
+      closeLoginModal();
+      showToast(`Berhasil login sebagai ${currentGoogleProfile.name}!`, '#10b981');
+    } else {
+      showToast('Gagal menghubungkan channel YouTube', '#ef4444');
+    }
+  } catch (err) {
+    showToast('Error koneksi saat menghubungkan channel', '#ef4444');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function submitBrowserLogin(browserName) {
+  showToast(`Mengimpor sesi login dari ${browserName}...`, '#3b82f6');
+  try {
+    const res = await fetch('/api/account/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'browser', browser: browserName })
+    });
+    const data = await res.json();
+    if (data && data.profile) {
+      currentGoogleProfile = data.profile;
+      accountMode = data.mode || 'google';
+      localStorage.setItem('fxtube_account_mode', accountMode);
+      updateSidebarProfileUI();
+      updateCommentsAuthUI();
+      closeLoginModal();
+      showToast(`Sesi login ${browserName} berhasil diimpor!`, '#10b981');
+    }
+  } catch (err) {
+    showToast(`Gagal mengimpor sesi ${browserName}`, '#ef4444');
+  }
+}
+
+async function logoutGoogleAccount() {
+  try {
+    const res = await fetch('/api/account/logout', { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      currentGoogleProfile = data.profile || { is_logged_in: false, name: 'Tamu', handle: '@guest' };
+      accountMode = 'guest';
+      localStorage.setItem('fxtube_account_mode', 'guest');
+      updateSidebarProfileUI();
+      updateCommentsAuthUI();
+      showToast('Berhasil keluar. Mode Tamu aktif.', '#737373');
+    }
+  } catch (err) {
+    console.error('Logout error:', err);
+  }
+}
+
+// ============================================
+// VIDEO COMMENTS SECTION LOGIC
+// ============================================
+async function loadVideoComments(video) {
+  const listEl = document.getElementById('commentsList');
+  const countBadge = document.getElementById('commentsCountBadge');
+  if (!listEl) return;
+
+  listEl.innerHTML = `
+    <div class="comments-loading">
+      <div class="spinner" style="width:20px;height:20px;"></div>
+      <span>Memuat komentar...</span>
+    </div>
+  `;
+  if (countBadge) countBadge.innerText = '...';
+
+  try {
+    const res = await fetch(`/api/comments?url=${encodeURIComponent(video.url || '')}&id=${encodeURIComponent(video.id || '')}`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const comments = (data && data.comments) ? data.comments : [];
+
+    if (countBadge) countBadge.innerText = comments.length.toString();
+
+    if (comments.length === 0) {
+      listEl.innerHTML = `
+        <div class="comments-empty">
+          <svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:#666;margin-right:6px;"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
+          Belum ada komentar untuk video ini.
+        </div>
+      `;
+      return;
+    }
+
+    listEl.innerHTML = comments.map(c => `
+      <div class="comment-card">
+        ${c.avatar ? `<img class="comment-avatar" src="${escapeHtml(c.avatar)}" alt="${escapeHtml(c.author)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+        <div class="comment-avatar-fallback" style="${c.avatar ? 'display:none;' : 'display:flex;'}">
+          <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        </div>
+        <div class="comment-content">
+          <div class="comment-meta">
+            <span class="comment-author">${escapeHtml(c.author || 'Anonim')}</span>
+            <span class="comment-time">${escapeHtml(c.time || '')}</span>
+          </div>
+          <div class="comment-body">${escapeHtml(c.text || '')}</div>
+          ${c.likes ? `
+          <div class="comment-actions">
+            <button class="comment-like-btn" onclick="toggleCommentLike(this)">
+              <svg viewBox="0 0 24 24"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
+              <span>${escapeHtml(c.likes)}</span>
+            </button>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    listEl.innerHTML = `
+      <div class="comments-empty" style="color:#ef4444;">
+        Komentar tidak dapat dimuat saat ini.
+      </div>
+    `;
+    if (countBadge) countBadge.innerText = '0';
+  }
+}
+
+function toggleCommentLike(btn) {
+  const span = btn.querySelector('span');
+  const count = parseInt(span ? span.innerText : '0', 10) || 0;
+  if (btn.classList.contains('liked')) {
+    btn.classList.remove('liked');
+    btn.style.color = '#888';
+    if (span) span.innerText = Math.max(0, count - 1).toString();
+  } else {
+    btn.classList.add('liked');
+    btn.style.color = '#ef4444';
+    if (span) span.innerText = (count + 1).toString();
+    showToast('Komentar disukai!', '#ef4444');
+  }
+}
+
+async function submitComment() {
+  const input = document.getElementById('commentTextInput');
+  const text = input ? input.value.trim() : '';
+  if (!text) return;
+
+  if (!currentVideo) {
+    showToast('Pilih video terlebih dahulu', '#eab308');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/comments/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        video_url: currentVideo.url || '',
+        video_id: currentVideo.id || '',
+        text: text
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      input.value = '';
+      showToast('Komentar berhasil dipublikasikan!', '#10b981');
+      if (data && data.comment) {
+        prependNewComment(data.comment);
+      }
+    } else {
+      showToast('Gagal memposting komentar', '#ef4444');
+    }
+  } catch (err) {
+    showToast('Error koneksi saat mengirim komentar', '#ef4444');
+  }
+}
+
+function prependNewComment(c) {
+  const listEl = document.getElementById('commentsList');
+  if (!listEl) return;
+
+  const emptyMsg = listEl.querySelector('.comments-empty');
+  if (emptyMsg) emptyMsg.remove();
+
+  const countBadge = document.getElementById('commentsCountBadge');
+  if (countBadge) {
+    const cur = parseInt(countBadge.innerText, 10) || 0;
+    countBadge.innerText = (cur + 1).toString();
+  }
+
+  const newCard = document.createElement('div');
+  newCard.className = 'comment-card';
+  newCard.style.animation = 'fadeIn 0.3s ease';
+  newCard.innerHTML = `
+    ${c.avatar ? `<img class="comment-avatar" src="${escapeHtml(c.avatar)}" alt="${escapeHtml(c.author)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+    <div class="comment-avatar-fallback" style="${c.avatar ? 'display:none;' : 'display:flex;'}">
+      <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+    </div>
+    <div class="comment-content">
+      <div class="comment-meta">
+        <span class="comment-author">${escapeHtml(c.author || 'Anda')}</span>
+        <span class="comment-time">Baru saja</span>
+      </div>
+      <div class="comment-body">${escapeHtml(c.text || '')}</div>
+    </div>
+  `;
+  listEl.insertBefore(newCard, listEl.firstChild);
+}

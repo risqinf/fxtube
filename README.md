@@ -19,7 +19,9 @@ Watching YouTube in modern web browsers (such as Chrome or Edge) can be frustrat
 - **Ultra Lightweight**: Uses a fraction of the CPU and RAM compared to opening YouTube in a standard browser tab.
 - **Dynamic Resolutions (144p - 1080p)**: Automatically detects and unlocks all available video resolutions up to 1080p Full HD.
 - **Smooth Playlists & Infinite Feed**: Next videos preload seamlessly in the background, and the home feed supports live refresh and infinite scroll.
-- **Keeps Your Account**: Syncs subscriptions, history, and playlists from your existing browser (Firefox, Chrome, Brave, Edge) without needing to re-enter your password.
+- **Keeps Your Account**: Syncs subscriptions, history, and playlists from your existing browser (Firefox, Chrome, Brave, Edge) or link your YouTube channel handle (`@handle`). Default mode is Guest (Tamu) with 1-click Google login.
+- **Comments & Interactive Community**: Read and post comments directly on any video with your channel profile avatar and name.
+- **Pure SVG Vector Icons**: Completely free of emojis, utilizing crisp, hardware-accelerated SVG icons across the entire interface.
 - **Zero Configuration**: Bundled with helpers or auto-downloads dependencies on startup.
 
 ---
@@ -63,9 +65,9 @@ Choose the installer or bundle matching your operating system from [GitHub Relea
 
 #### Android (Mobile Phones & Tablets - Android 4.0+ / 1GB RAM)
 FX Tube is ultra-optimized for legacy smartphones (Android 4.0 Ice Cream Sandwich up to Android 14):
-- **Wi-Fi LAN Access (Zero Install)**: Connect your phone to the same Wi-Fi as your computer running FX Tube and open `http://<computer-ip>:18201` in your phone's browser (Chrome, stock WebKit, or Opera). Consumes only ~25 MB RAM!
-- **Native Android APK (`android/`)**: Project source included with `minSdkVersion 14` for building an ultra-lightweight standalone APK wrapper.
-- **Full YouTube Shorts**: Dedicated Shorts tab with 9:16 vertical layout and auto-looping.
+- **Universal APK (`fxtube-android.apk`)**: Explicitly supports **ARMv7 (`armeabi-v7a` 32-bit)** legacy chipsets as well as modern **ARM64 (`arm64-v8a`)** and **x86**. Uses less than 25MB RAM!
+- **Wi-Fi LAN Access (Zero Install)**: Connect your phone to the same Wi-Fi as your computer running FX Tube and open `http://<computer-ip>:18201` in your phone's browser (Chrome, stock WebKit, or Opera).
+- **Full TikTok-style Shorts**: Vertical snap scrolling reel with 9:16 layout, auto-looping, channel overlay, and action rail.
 
 ---
 
@@ -96,7 +98,9 @@ Hal itu wajar, karena situs web YouTube modern saat ini sangat berat. Setiap kal
 - **Playlist Cepat & Mulus**: Video selanjutnya di playlist sudah di-preload secara otomatis di latar belakang sehingga pergantian video instan dan tidak macet.
 - **Beranda Segar & Scroll Tanpa Batas**: Tombol "Muat Ulang" langsung menyegarkan rekomendasi terkini dari YouTube, dan daftar video otomatis memuat ke bawah (infinite scroll).
 - **Sangat Hemat RAM & CPU**: Menggunakan sumber daya komputer yang jauh lebih sedikit dibanding membuka YouTube di tab browser biasa.
-- **Tetap Bisa Pakai Akun Anda**: Langsung membaca daftar Subscribe, Riwayat, dan Playlist dari browser Anda (Firefox, Chrome, Brave, Edge) tanpa perlu login ulang.
+- **Tetap Bisa Pakai Akun Anda**: Sinkronisasi akun Google/YouTube via handle channel (`@handle`) atau browser Anda. Default adalah **Mode Tamu** dengan opsi login Google 1-klik kapan saja.
+- **Bisa Berkomentar Langsung**: Tulis dan baca komentar video YouTube secara langsung dengan foto profil dan nama akun/channel Anda.
+- **Ikon Vektor SVG Murni (Tanpa Emoji)**: Seluruh tampilan antarmuka menggunakan ikon SVG tajam dan profesional yang ringan dan konsisten di semua layar.
 - **Siap Pakai (Zero Setup)**: Bundling biner sudah lengkap atau otomatis mengunduh alat bantu saat pertama kali dibuka jika belum ada.
 
 ---
@@ -139,12 +143,11 @@ Unduh berkas instalasi sesuai sistem operasi Anda di halaman [GitHub Releases](h
    ./fxtube
    ```
 
-#### Pengguna HP Android (Android 4.0+ & RAM 1GB)
+#### Pengguna HP Android (Android 4.0+ & RAM 512MB–1GB)
 FX Tube dirancang sangat ringan sehingga dapat berjalan mulus di HP Android jadul (mulai dari Android 4.0 Ice Cream Sandwich hingga Android modern):
-- **Aplikasi Asli APK Mandiri (`fxtube-android.apk`)**: Cukup pasang file APK di HP Anda, buka, dan langsung tonton YouTube serta Shorts secara mandiri tanpa memerlukan komputer/laptop sama sekali! Sangat hemat RAM (~15-25 MB RAM).
-- **Akses Langsung via Wi-Fi (Tanpa Install di HP)**: Hubungkan HP Anda ke Wi-Fi yang sama dengan komputer Anda, lalu buka browser di HP dan ketik `http://<ip-komputer>:18201` (alamat IP otomatis tertera di menu Setting FX Tube).
-- **Mode Fleksibel**: Anda juga dapat menghubungkan APK Android ke laptop server Anda kapan saja jika ingin sinkronisasi riwayat dan akun Firefox dari laptop.
-- **Mendukung Penuh YouTube Shorts**: Tab khusus Shorts dengan pemutar video vertikal 9:16 yang otomatis memutar berulang (looping) tanpa macet.
+- **Aplikasi Asli APK Universal (`fxtube-android.apk`)**: Mendukung penuh arsitektur chipset jadul **ARMv7 (`armeabi-v7a` 32-bit)**, **ARM64 (`arm64-v8a`)**, dan **x86**. Berjalan mandiri langsung di HP tanpa perlu laptop menyala, hemat memori (RAM < 25 MB).
+- **Akses Langsung via Wi-Fi (Tanpa Install di HP)**: Hubungkan HP Anda ke Wi-Fi yang sama dengan komputer Anda, lalu buka browser di HP dan ketik `http://<ip-komputer>:18201`.
+- **Shorts Vertikal TikTok-Style**: Tab khusus Shorts dengan navigasi gulir snap vertikal, loop otomatis, dan tombol interaksi cepat.
 
 ---
 

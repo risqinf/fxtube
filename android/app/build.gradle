@@ -10,8 +10,11 @@ android {
         applicationId "dev.risqinf.fxtube"
         minSdk 14
         targetSdk 34
-        versionCode 3
-        versionName "1.4.1"
+        versionCode 4
+        versionName "1.4.2"
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
     }
 
     buildTypes {

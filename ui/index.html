@@ -45,10 +45,45 @@
       </li>
     </ul>
     <div class="spec-info">
-      <div>Akun: <span id="accountModeBadge" class="spec-badge">Firefox Sync</span></div>
+      <div>Akun: <span id="accountModeBadge" class="spec-badge">Mode Tamu</span></div>
       <div>Player: <span id="playerModeBadge" class="spec-badge">Embedded Web</span></div>
       <div>Resolusi: <span id="specOptText">480p H.264</span></div>
-      <div style="margin-top: 4px; color: #555;">FX Tube v1.2 Modular</div>
+      <div style="margin-top: 4px; color: #555;">FX Tube v1.4.2</div>
+    </div>
+
+    <!-- BOTTOM LEFT SIDEBAR CHANNEL / ACCOUNT CARD -->
+    <div id="sidebarUserFooter" class="sidebar-user-footer">
+      <!-- Guest State -->
+      <div id="sidebarGuestCard" class="sidebar-account-card guest-card" onclick="openLoginModal()" title="Klik untuk Login Akun Google">
+        <div class="account-avatar-box">
+          <svg viewBox="0 0 24 24" class="account-avatar-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+        </div>
+        <div class="account-info">
+          <div class="account-name">Mode Tamu</div>
+          <div class="account-subtext">Mau login akun Google?</div>
+        </div>
+        <div class="account-action-icon">
+          <svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+        </div>
+      </div>
+
+      <!-- Logged-in Google / YouTube Channel State -->
+      <div id="sidebarLoggedInCard" class="sidebar-account-card logged-in-card" style="display:none;" onclick="openUserProfileChannel()" title="Buka Channel YouTube Anda">
+        <div class="account-avatar-box">
+          <img id="sidebarUserAvatar" class="account-avatar-img" src="" alt="Channel Avatar" onerror="this.style.display='none';document.getElementById('sidebarAvatarFallback').style.display='block';">
+          <div id="sidebarAvatarFallback" class="account-avatar-icon" style="display:none;">
+            <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+          </div>
+          <span class="online-indicator-dot"></span>
+        </div>
+        <div class="account-info">
+          <div id="sidebarUserName" class="account-name">Channel Anda</div>
+          <div id="sidebarUserHandle" class="account-subtext">@handle</div>
+        </div>
+        <button class="account-logout-btn" onclick="event.stopPropagation(); logoutGoogleAccount();" title="Keluar / Beralih ke Mode Tamu">
+          <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+        </button>
+      </div>
     </div>
   </aside>
 
@@ -211,6 +246,55 @@
                   <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
                   Kembali
                 </button>
+              </div>
+            </div>
+
+            <!-- COMMENTS SECTION -->
+            <div id="commentsSection" class="comments-section">
+              <div class="comments-header">
+                <div class="comments-title">
+                  <svg viewBox="0 0 24 24"><path d="M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+                  <span>Komentar</span>
+                  <span id="commentsCountBadge" class="comments-count-badge">0</span>
+                </div>
+              </div>
+
+              <!-- GUEST BANNER / LOGIN PROMPT -->
+              <div id="commentGuestBanner" class="comment-guest-banner" style="display: flex;">
+                <div class="comment-guest-icon">
+                  <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                </div>
+                <div class="comment-guest-text">
+                  <strong>Mode Tamu Aktif</strong>
+                  <span>Mau login akun Google untuk ikut berkomentar di video ini?</span>
+                </div>
+                <button class="btn-login-google" onclick="openLoginModal()">
+                  <svg viewBox="0 0 24 24"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>
+                  Login Google
+                </button>
+              </div>
+
+              <!-- AUTHENTICATED COMMENT INPUT BOX -->
+              <div id="commentInputBox" class="comment-input-box" style="display: none;">
+                <img id="userCommentAvatar" class="user-comment-avatar" src="" alt="Avatar" style="display:none;" onerror="this.style.display='none';document.getElementById('userCommentAvatarPlaceholder').style.display='flex';">
+                <div id="userCommentAvatarPlaceholder" class="user-comment-avatar-placeholder">
+                  <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                </div>
+                <div class="comment-input-wrapper">
+                  <input type="text" id="commentTextInput" class="comment-text-input" placeholder="Tulis komentar publik..." onkeydown="if(event.key==='Enter') submitComment()">
+                  <button class="comment-submit-btn" onclick="submitComment()" title="Kirim Komentar">
+                    <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                    Kirim
+                  </button>
+                </div>
+              </div>
+
+              <!-- COMMENTS LIST -->
+              <div id="commentsList" class="comments-list">
+                <div class="comments-loading">
+                  <div class="spinner" style="width:20px;height:20px;"></div>
+                  <span>Memuat komentar...</span>
+                </div>
               </div>
             </div>
           </div>
@@ -432,11 +516,17 @@
       <div class="form-group" style="border-top:1px solid #282828;padding-top:12px;" id="serverModeSection">
         <label class="form-label">Mode Operasi Aplikasi:</label>
         <div style="background:#151515;border:1px solid #333;border-radius:8px;padding:10px 14px;margin-bottom:8px;">
-          <div id="modeStatusBadge" style="font-size:12px;color:#10b981;font-weight:bold;margin-bottom:4px;">🟢 Mode Mandiri (Standalone di HP)</div>
+          <div id="modeStatusBadge" style="font-size:12px;color:#10b981;font-weight:bold;margin-bottom:4px;display:flex;align-items:center;">
+            <span class="online-indicator-dot" style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;margin-right:6px;"></span>
+            <span>Mode Mandiri (Standalone di HP)</span>
+          </div>
           <div style="font-size:11px;color:#888;">Memutar video YouTube & Shorts langsung di HP tanpa perlu laptop menyala.</div>
         </div>
         <div id="connectServerBox" style="display:flex;gap:8px;">
-          <button class="header-btn" onclick="toggleServerConfig()" style="width:100%;padding:7px;font-size:12px;justify-content:center;">⚙️ Atur Koneksi Server Laptop (Opsional)</button>
+          <button class="header-btn" onclick="toggleServerConfig()" style="width:100%;padding:7px;font-size:12px;justify-content:center;">
+            <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor;margin-right:6px;"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            Atur Koneksi Server Laptop (Opsional)
+          </button>
         </div>
       </div>
 
@@ -457,6 +547,67 @@
 
       <div class="modal-actions">
         <button class="refresh-btn" onclick="closeSettingsModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL GOOGLE ACCOUNT LOGIN -->
+  <div id="loginModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header-row" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div class="modal-title" style="margin-bottom:0;display:flex;align-items:center;gap:10px;">
+          <svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:#dc2626;"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>
+          Login Akun Google & YouTube
+        </div>
+        <button class="modal-close-btn" onclick="closeLoginModal()" title="Tutup (Esc)">
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:currentColor;"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+
+      <div style="font-size:12px;color:#aaa;line-height:1.5;margin-bottom:16px;">
+        Hubungkan channel YouTube Anda untuk menampilkan foto profil di pojok kiri bawah desktop, memuat subscriptions, dan ikut berkomentar di video. FX Tube 100% lokal dan super ringan tanpa tracking.
+      </div>
+
+      <!-- OPTION 1: HUBUNGI HANDLE / CHANNEL -->
+      <div class="form-group" style="background:#151515;border:1px solid #282828;border-radius:8px;padding:14px;margin-bottom:14px;">
+        <label class="form-label" style="display:flex;align-items:center;gap:6px;font-size:13px;color:#fff;">
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:#ef4444;"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+          Hubungkan Handle / Channel YouTube
+        </label>
+        <div style="font-size:11px;color:#888;margin-bottom:10px;">Masukkan handle YouTube Anda (contoh: <code>@risqinf</code>) atau tautan channel.</div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="loginHandleInput" class="search-input" placeholder="@handle_youtube" style="flex:1;" onkeydown="if(event.key==='Enter') submitHandleLogin()">
+          <button class="search-btn" onclick="submitHandleLogin()" id="btnSubmitLoginHandle">
+            <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:currentColor;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+            Hubungkan
+          </button>
+        </div>
+      </div>
+
+      <!-- OPTION 2: IMPOR DARI BROWSER -->
+      <div class="form-group" style="background:#151515;border:1px solid #282828;border-radius:8px;padding:14px;margin-bottom:14px;">
+        <label class="form-label" style="display:flex;align-items:center;gap:6px;font-size:13px;color:#fff;">
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:#38bdf8;"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+          Impor Otomatis Sesi Browser
+        </label>
+        <div style="font-size:11px;color:#888;margin-bottom:10px;">Impor otomatis sesi login YouTube dari browser di laptop Anda:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="header-btn" onclick="submitBrowserLogin('firefox')" style="flex:1;justify-content:center;padding:8px 12px;font-size:12px;">
+            <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:#f97316;margin-right:6px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            Firefox Sync
+          </button>
+          <button class="header-btn" onclick="submitBrowserLogin('chrome')" style="flex:1;justify-content:center;padding:8px 12px;font-size:12px;">
+            <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:#3b82f6;margin-right:6px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            Chrome / Brave
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="display:flex;justify-content:space-between;align-items:center;">
+        <button class="ctrl-btn" onclick="continueAsGuest()" style="font-size:12px;color:#aaa;">
+          Tetap sebagai Mode Tamu
+        </button>
+        <button class="refresh-btn" onclick="closeLoginModal()">Tutup</button>
       </div>
     </div>
   </div>
