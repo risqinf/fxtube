@@ -37,6 +37,7 @@ type VideoItem struct {
 	Duration       int64       `json:"duration"`
 	DurationString string      `json:"duration_string"`
 	Thumbnails     []Thumbnail `json:"thumbnails"`
+	IsShorts       bool        `json:"is_shorts"`
 }
 
 // PlayRequest represents a play action from the frontend

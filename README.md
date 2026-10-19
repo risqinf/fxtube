@@ -61,6 +61,12 @@ Choose the installer or bundle matching your operating system from [GitHub Relea
    ./fxtube
    ```
 
+#### Android (Mobile Phones & Tablets - Android 4.0+ / 1GB RAM)
+FX Tube is ultra-optimized for legacy smartphones (Android 4.0 Ice Cream Sandwich up to Android 14):
+- **Wi-Fi LAN Access (Zero Install)**: Connect your phone to the same Wi-Fi as your computer running FX Tube and open `http://<computer-ip>:18201` in your phone's browser (Chrome, stock WebKit, or Opera). Consumes only ~25 MB RAM!
+- **Native Android APK (`android/`)**: Project source included with `minSdkVersion 14` for building an ultra-lightweight standalone APK wrapper.
+- **Full YouTube Shorts**: Dedicated Shorts tab with 9:16 vertical layout and auto-looping.
+
 ---
 
 ### Keyboard Shortcuts
@@ -132,6 +138,12 @@ Unduh berkas instalasi sesuai sistem operasi Anda di halaman [GitHub Releases](h
    tar -xvf fxtube-darwin-arm64.tar.gz
    ./fxtube
    ```
+
+#### Pengguna HP Android (Android 4.0+ & RAM 1GB)
+FX Tube dirancang sangat ringan sehingga dapat berjalan mulus di HP Android jadul (mulai dari Android 4.0 Ice Cream Sandwich hingga Android modern):
+- **Akses Langsung via Wi-Fi (Tanpa Install di HP)**: Hubungkan HP Anda ke Wi-Fi yang sama dengan komputer Anda, lalu buka browser di HP dan ketik `http://<ip-komputer>:18201` (alamat IP otomatis tertera di menu Setting FX Tube). Hanya memakan RAM ~25 MB!
+- **Aplikasi Asli Android APK (`android/`)**: Tersedia proyek aplikasi Android native dengan `minSdkVersion 14` yang hemat RAM, mendukung layar penuh, dan akselerasi grafis perangkat keras lama.
+- **Mendukung Penuh YouTube Shorts**: Tab khusus Shorts dengan pemutar video vertikal 9:16 yang otomatis memutar berulang (looping) tanpa macet.
 
 ---
 

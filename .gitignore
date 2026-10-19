@@ -7,8 +7,8 @@ dist/
 *.rpm
 *.pkg.tar.zst
 *.msi
-fxtube
-fxtube-test
+/fxtube
+/fxtube-test
 
 # Temporary files
 *.sock

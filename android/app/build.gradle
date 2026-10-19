@@ -1,0 +1,32 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'dev.risqinf.fxtube'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "dev.risqinf.fxtube"
+        minSdk 14
+        targetSdk 34
+        versionCode 2
+        versionName "1.4.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    // Zero heavy dependencies to maintain sub-30MB RAM usage on Android 4.0+
+}

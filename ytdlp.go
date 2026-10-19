@@ -80,8 +80,21 @@ func (a *App) runYtDlp(target string, maxItems int, startItem int, forceRefresh 
 			if strings.Contains(item.URL, "playlist?list=") || strings.Contains(item.ID, "RD") {
 				continue
 			}
+			if strings.Contains(item.URL, "/shorts/") {
+				parts := strings.Split(item.URL, "/shorts/")
+				if len(parts) > 1 {
+					id := strings.Split(parts[1], "?")[0]
+					item.ID = id
+					item.URL = "https://www.youtube.com/watch?v=" + id
+				}
+				item.IsShorts = true
+			}
 			if item.URL == "" && item.ID != "" {
 				item.URL = "https://www.youtube.com/watch?v=" + item.ID
+			}
+			titleLower := strings.ToLower(item.Title)
+			if strings.Contains(titleLower, "#shorts") || strings.Contains(titleLower, "#short") || (item.Duration > 0 && item.Duration <= 61) {
+				item.IsShorts = true
 			}
 			items = append(items, item)
 		}

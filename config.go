@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -217,4 +218,41 @@ func cleanBrowserProfile(profileDir string) {
 	for _, dir := range junkDirs {
 		_ = os.RemoveAll(dir)
 	}
+}
+
+// normalizeYouTubeURL converts Shorts and shortlinks to standard watch URLs
+func normalizeYouTubeURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if strings.Contains(raw, "/shorts/") {
+		parts := strings.Split(raw, "/shorts/")
+		if len(parts) > 1 {
+			id := strings.Split(parts[1], "?")[0]
+			id = strings.Split(id, "&")[0]
+			return "https://www.youtube.com/watch?v=" + id
+		}
+	} else if strings.Contains(raw, "youtu.be/") {
+		parts := strings.Split(raw, "youtu.be/")
+		if len(parts) > 1 {
+			id := strings.Split(parts[1], "?")[0]
+			id = strings.Split(id, "&")[0]
+			return "https://www.youtube.com/watch?v=" + id
+		}
+	}
+	return raw
+}
+
+// getLocalIP returns the primary non-loopback local IPv4 address for mobile LAN access
+func getLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "127.0.0.1"
+	}
+	for _, a := range addrs {
+		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return "127.0.0.1"
 }

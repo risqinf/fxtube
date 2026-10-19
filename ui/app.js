@@ -74,13 +74,28 @@ function showToast(msg, bg="#2563eb") {
 
 function setTabActive(tabName) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  const mapping = {'home': 0, 'subscriptions': 1, 'history': 2, 'localhistory': 3, 'watchlater': 4, 'liked': 5};
+  document.querySelectorAll('.mobile-nav-item').forEach(el => el.classList.remove('active'));
+
+  const mapping = {'home': 0, 'shorts': 1, 'subscriptions': 2, 'history': 3, 'localhistory': 4, 'watchlater': 5, 'liked': 6};
   if (mapping[tabName] !== undefined) {
     const items = document.querySelectorAll('.nav-list .nav-item');
     if (items[mapping[tabName]]) {
       items[mapping[tabName]].classList.add('active');
     }
   }
+
+  const mobileMap = {
+    'home': 'mNavHome',
+    'shorts': 'mNavShorts',
+    'subscriptions': 'mNavSubs',
+    'history': 'mNavHistory',
+    'localhistory': 'mNavHistory'
+  };
+  if (mobileMap[tabName]) {
+    const mEl = document.getElementById(mobileMap[tabName]);
+    if (mEl) mEl.classList.add('active');
+  }
+
   const chipsBar = document.getElementById('homeChipsBar');
   if (chipsBar) {
     chipsBar.style.display = (tabName === 'home') ? 'flex' : 'none';
@@ -139,6 +154,7 @@ async function loadTab(tabName, forceRefresh=false) {
 
   const titles = {
     home: 'Home (Beranda)',
+    shorts: 'YouTube Shorts (Video Pendek)',
     subscriptions: 'Subscriptions (Feed Akun Anda)',
     history: 'Riwayat Tontonan (Akun YouTube)',
     localhistory: 'Riwayat Putar Lokal (FX Tube)',
@@ -265,10 +281,12 @@ function appendVideos(newVideos) {
       thumb = v.thumbnails[v.thumbnails.length - 1].url || thumb;
     }
     const durationText = v.duration_string || formatDuration(v.duration);
+    const isShort = v.is_shorts || (v.title && (v.title.toLowerCase().includes('#shorts') || v.title.toLowerCase().includes('#short'))) || (v.duration > 0 && v.duration <= 61);
 
     card.innerHTML = `
       <div class="thumb-wrapper" onclick="handleCardClick(${cardIndex})">
         <img class="thumb-img" src="${thumb}" loading="lazy" decoding="async" alt="thumb">
+        ${isShort ? `<span class="shorts-badge">${ICONS.flame} Shorts</span>` : ''}
         ${durationText ? `<span class="duration-badge">${durationText}</span>` : ''}
       </div>
       <div class="card-info" onclick="handleCardClick(${cardIndex})">
@@ -379,10 +397,12 @@ function renderVideos(videos) {
     }
 
     const durationText = v.duration_string || formatDuration(v.duration);
+    const isShort = v.is_shorts || (v.title && (v.title.toLowerCase().includes('#shorts') || v.title.toLowerCase().includes('#short'))) || (v.duration > 0 && v.duration <= 61);
 
     card.innerHTML = `
       <div class="thumb-wrapper" onclick="handleCardClick(${index})">
         <img class="thumb-img" src="${thumb}" loading="lazy" decoding="async" alt="thumb">
+        ${isShort ? `<span class="shorts-badge">${ICONS.flame} Shorts</span>` : ''}
         ${durationText ? `<span class="duration-badge">${durationText}</span>` : ''}
       </div>
       <div class="card-info" onclick="handleCardClick(${index})">
@@ -707,6 +727,18 @@ async function playEmbeddedVideo(v) {
 
   document.getElementById('watchTitle').innerText = v.title;
   document.getElementById('watchChannel').innerText = v.channel || v.uploader || 'YouTube';
+
+  const isShort = v.is_shorts || (v.title && (v.title.toLowerCase().includes('#shorts') || v.title.toLowerCase().includes('#short'))) || (v.duration > 0 && v.duration <= 61);
+  const container = document.querySelector('.video-container');
+  if (container) {
+    if (isShort) {
+      container.classList.add('shorts-mode');
+      if (player) player.loop = true;
+    } else {
+      container.classList.remove('shorts-mode');
+      if (player) player.loop = false;
+    }
+  }
 
   // 1. Detect and render available resolutions (up to 1080p)
   renderQualityButtons(currentAvailableQualities);
@@ -1081,8 +1113,33 @@ function openSettingsModal() {
   const setAuto = document.getElementById('setAutoplay');
   if (setAuto) setAuto.checked = autoplayEnabled;
 
+  // Fetch local LAN network address for mobile access
+  fetch('/api/network/info')
+    .then(r => r.json())
+    .then(data => {
+      const code = document.getElementById('mobileLanUrl');
+      if (code && data && data.mobile_url) {
+        code.innerText = data.mobile_url;
+      }
+    })
+    .catch(() => {});
+
   const modal = document.getElementById('settingsModal');
   if (modal) modal.style.display = 'flex';
+}
+
+function copyMobileUrl() {
+  const code = document.getElementById('mobileLanUrl');
+  const url = code ? code.innerText : '';
+  if (url && navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('Link HP disalin: ' + url, '#10b981');
+    }).catch(() => {
+      showToast('Buka di browser HP: ' + url, '#2563eb');
+    });
+  } else if (url) {
+    showToast('Buka di browser HP: ' + url, '#2563eb');
+  }
 }
 
 function closeSettingsModal() {

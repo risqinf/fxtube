@@ -56,12 +56,14 @@ func main() {
 
 	handler := app.setupRoutes()
 
-	listener, err := net.Listen("tcp", "127.0.0.1:"+port)
+	listener, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)
 	}
 
-	log.Printf("[FX Tube] Server berjalan di http://127.0.0.1:%s\n", port)
+	localIP := getLocalIP()
+	log.Printf("[FX Tube] Server Desktop: http://127.0.0.1:%s\n", port)
+	log.Printf("[FX Tube] Akses Mobile / Android (LAN): http://%s:%s\n", localIP, port)
 
 	// Ignore SIGHUP so backend persists cleanly when terminal/launcher exits
 	signal.Ignore(syscall.SIGHUP)

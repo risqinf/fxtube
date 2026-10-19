@@ -33,6 +33,7 @@ func (a *App) setupRoutes() http.Handler {
 	mux.HandleFunc("/api/video/info", a.handleVideoInfo)
 	mux.HandleFunc("/api/stream", a.handleStream)
 	mux.HandleFunc("/api/stream/preload", a.handleStreamPreload)
+	mux.HandleFunc("/api/network/info", a.handleNetworkInfo)
 	mux.HandleFunc("/api/account-mode", a.handleAccountMode)
 	mux.HandleFunc("/api/play", a.handlePlay)
 	mux.HandleFunc("/api/stop", a.handleStop)
@@ -69,6 +70,8 @@ func (a *App) handleFeed(w http.ResponseWriter, r *http.Request) {
 				target = "https://www.youtube.com/feed/trending"
 			}
 		}
+	case "shorts":
+		target = fmt.Sprintf("ytsearch%d:#shorts trending indonesia", startItem+pageSize-1)
 	case "subscriptions":
 		target = "https://www.youtube.com/feed/subscriptions"
 	case "history":
@@ -125,7 +128,7 @@ func (a *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleVideoInfo(w http.ResponseWriter, r *http.Request) {
-	targetURL := strings.TrimSpace(r.URL.Query().Get("url"))
+	targetURL := normalizeYouTubeURL(r.URL.Query().Get("url"))
 	w.Header().Set("Content-Type", "application/json")
 	if targetURL == "" {
 		json.NewEncoder(w).Encode(map[string]interface{}{"qualities": []string{"360", "480", "720"}})
@@ -143,7 +146,7 @@ func (a *App) handleVideoInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleStreamPreload(w http.ResponseWriter, r *http.Request) {
-	targetURL := strings.TrimSpace(r.URL.Query().Get("url"))
+	targetURL := normalizeYouTubeURL(r.URL.Query().Get("url"))
 	quality := strings.TrimSpace(r.URL.Query().Get("quality"))
 	if quality == "" {
 		quality = "480"
@@ -156,6 +159,16 @@ func (a *App) handleStreamPreload(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func (a *App) handleNetworkInfo(w http.ResponseWriter, r *http.Request) {
+	ip := getLocalIP()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"local_ip":   ip,
+		"port":       DefaultPort,
+		"mobile_url": fmt.Sprintf("http://%s:%s", ip, DefaultPort),
+	})
 }
 
 func (a *App) handleAccountMode(w http.ResponseWriter, r *http.Request) {
@@ -184,6 +197,7 @@ func (a *App) handlePlay(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
+	req.URL = normalizeYouTubeURL(req.URL)
 
 	if err := a.startMpv(req); err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -226,7 +240,7 @@ func (a *App) handlePlayerCommand(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handlePlaylist(w http.ResponseWriter, r *http.Request) {
-	videoURL := strings.TrimSpace(r.URL.Query().Get("url"))
+	videoURL := normalizeYouTubeURL(r.URL.Query().Get("url"))
 	videoID := strings.TrimSpace(r.URL.Query().Get("id"))
 
 	var target string
@@ -238,10 +252,6 @@ func (a *App) handlePlaylist(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(videoURL, "v=") {
 			parts := strings.Split(videoURL, "v=")
 			id := strings.Split(parts[1], "&")[0]
-			target = fmt.Sprintf("https://www.youtube.com/watch?v=%s&list=RD%s", id, id)
-		} else if strings.Contains(videoURL, "youtu.be/") {
-			parts := strings.Split(videoURL, "youtu.be/")
-			id := strings.Split(parts[1], "?")[0]
 			target = fmt.Sprintf("https://www.youtube.com/watch?v=%s&list=RD%s", id, id)
 		} else {
 			target = fmt.Sprintf("%s&list=RD", videoURL)

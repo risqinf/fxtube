@@ -21,7 +21,7 @@ func (a *App) stopCurrentRemux() {
 
 // handleStream serves the direct or remuxed video stream for embedded HTML5 playback
 func (a *App) handleStream(w http.ResponseWriter, r *http.Request) {
-	targetURL := r.URL.Query().Get("url")
+	targetURL := normalizeYouTubeURL(r.URL.Query().Get("url"))
 	quality := r.URL.Query().Get("quality")
 	start := strings.TrimSpace(r.URL.Query().Get("start"))
 	if quality == "" {

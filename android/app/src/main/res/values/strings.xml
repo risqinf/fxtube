@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">FX Tube</string>
+    <string name="server_prompt">Masukkan Alamat Server FX Tube (misal: http://192.168.1.5:18201):</string>
+    <string name="default_server_url">http://10.0.2.2:18201</string>
+</resources>
