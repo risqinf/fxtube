@@ -42,10 +42,41 @@ public class MainActivity extends Activity {
         SharedPreferences prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         String serverUrl = prefs.getString(KEY_SERVER_URL, "");
 
-        if (serverUrl.isEmpty()) {
-            promptServerUrl(DEFAULT_URL);
-        } else {
+        if (!serverUrl.isEmpty()) {
             webView.loadUrl(serverUrl);
+        } else {
+            webView.loadUrl("file:///android_asset/web/index.html");
+        }
+    }
+
+    public class WebAppInterface {
+        @android.webkit.JavascriptInterface
+        public void openServerConfig() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    SharedPreferences prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+                    promptServerUrl(prefs.getString(KEY_SERVER_URL, ""));
+                }
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public void resetToStandalone() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    SharedPreferences prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+                    prefs.edit().remove(KEY_SERVER_URL).commit();
+                    webView.loadUrl("file:///android_asset/web/index.html");
+                }
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public boolean isStandalone() {
+            SharedPreferences prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+            return prefs.getString(KEY_SERVER_URL, "").isEmpty();
         }
     }
 
@@ -58,6 +89,11 @@ public class MainActivity extends Activity {
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            settings.setAllowUniversalAccessFromFileURLs(true);
+            settings.setAllowFileAccessFromFileURLs(true);
+        }
+
         // Hardware acceleration cache
         settings.setRenderPriority(WebSettings.RenderPriority.HIGH);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
@@ -65,6 +101,8 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
             settings.setMediaPlaybackRequiresUserGesture(false);
         }
+
+        webView.addJavascriptInterface(new WebAppInterface(), "AndroidApp");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -75,8 +113,11 @@ public class MainActivity extends Activity {
 
             @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                // If failed to connect, prompt for server URL
-                promptServerUrl(failingUrl);
+                // If failed to connect to custom server, fall back smoothly to standalone
+                if (!failingUrl.startsWith("file:///android_asset/")) {
+                    android.widget.Toast.makeText(MainActivity.this, "Server tidak terjangkau. Beralih ke Mode Mandiri.", android.widget.Toast.LENGTH_SHORT).show();
+                    view.loadUrl("file:///android_asset/web/index.html");
+                }
             }
         });
 
@@ -113,27 +154,39 @@ public class MainActivity extends Activity {
 
     private void promptServerUrl(String initialUrl) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Alamat Server FX Tube");
-        builder.setMessage("Masukkan alamat IP atau host FX Tube Anda (misal: http://192.168.1.5:18201 atau http://127.0.0.1:18201):");
+        builder.setTitle("Konfigurasi Server FX Tube");
+        builder.setMessage("FX Tube secara default bekerja langsung di HP (Mode Mandiri).\n\nJika ingin menghubungkan ke PC/Laptop server (opsional):");
 
         final EditText input = new EditText(this);
+        input.setHint("contoh: http://192.168.1.5:18201");
         input.setText(initialUrl);
         builder.setView(input);
 
-        builder.setPositiveButton("Hubungkan", new DialogInterface.OnClickListener() {
+        builder.setPositiveButton("Hubungkan ke PC", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 String url = input.getText().toString().trim();
-                if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                    url = "http://" + url;
+                if (!url.isEmpty()) {
+                    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                        url = "http://" + url;
+                    }
+                    SharedPreferences prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+                    prefs.edit().putString(KEY_SERVER_URL, url).commit();
+                    webView.loadUrl(url);
                 }
-                SharedPreferences prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-                prefs.edit().putString(KEY_SERVER_URL, url).commit();
-                webView.loadUrl(url);
             }
         });
 
-        builder.setNegativeButton("Batal", null);
+        builder.setNeutralButton("Mode Mandiri (Tanpa PC)", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                SharedPreferences prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+                prefs.edit().remove(KEY_SERVER_URL).commit();
+                webView.loadUrl("file:///android_asset/web/index.html");
+            }
+        });
+
+        builder.setNegativeButton("Tutup", null);
         builder.show();
     }
 

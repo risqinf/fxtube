@@ -46,6 +46,91 @@ const ICONS = {
   mic: `<svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>`
 };
 
+// Standalone Mode Detection (runs fully standalone on Android/local without laptop server)
+const isStandaloneMode = (window.location.protocol === 'file:') || 
+                         (window.location.hostname === '' && !window.location.port) ||
+                         (localStorage.getItem('fxtube_standalone') === '1');
+
+function parseDurationToSec(str) {
+  if (!str) return 0;
+  const parts = str.split(':').map(Number);
+  if (parts.length === 3) return (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
+  if (parts.length === 2) return (parts[0] || 0) * 60 + (parts[1] || 0);
+  return 0;
+}
+
+function parseInnerTubeItem(item, isShortsTab = false) {
+  if (item.videoWithContextRenderer) {
+    const v = item.videoWithContextRenderer;
+    const durStr = v.lengthText?.runs?.[0]?.text || '';
+    const durSec = parseDurationToSec(durStr);
+    const title = v.headline?.runs?.[0]?.text || 'Video';
+    const thumbs = v.thumbnail?.thumbnails || [];
+    const thumbUrl = thumbs.length > 0 ? thumbs[thumbs.length - 1].url : `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`;
+    const channel = v.shortBylineText?.runs?.[0]?.text || v.longBylineText?.runs?.[0]?.text || '';
+    const views = v.shortViewCountText?.runs?.[0]?.text || '';
+    return {
+      id: v.videoId,
+      url: `https://www.youtube.com/watch?v=${v.videoId}`,
+      title: title,
+      uploader: channel,
+      thumbnail: thumbUrl,
+      duration: durSec,
+      duration_str: durStr,
+      views: views,
+      is_shorts: isShortsTab || title.toLowerCase().includes('#short') || (durSec > 0 && durSec <= 61)
+    };
+  }
+  if (item.videoRenderer) {
+    const v = item.videoRenderer;
+    const durStr = v.lengthText?.simpleText || '';
+    const durSec = parseDurationToSec(durStr);
+    const title = v.title?.runs?.[0]?.text || 'Video';
+    const thumbs = v.thumbnail?.thumbnails || [];
+    const thumbUrl = thumbs.length > 0 ? thumbs[thumbs.length - 1].url : `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`;
+    const channel = v.ownerText?.runs?.[0]?.text || '';
+    const views = v.shortViewCountText?.simpleText || '';
+    return {
+      id: v.videoId,
+      url: `https://www.youtube.com/watch?v=${v.videoId}`,
+      title: title,
+      uploader: channel,
+      thumbnail: thumbUrl,
+      duration: durSec,
+      duration_str: durStr,
+      views: views,
+      is_shorts: isShortsTab || title.toLowerCase().includes('#short') || (durSec > 0 && durSec <= 61)
+    };
+  }
+  return null;
+}
+
+async function fetchInnerTubeVideos(query, isShorts = false) {
+  const resp = await fetch('https://www.youtube.com/youtubei/v1/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query: query,
+      context: {
+        client: {
+          clientName: 'MWEB',
+          clientVersion: '2.20240101.00.00'
+        }
+      }
+    })
+  });
+  const data = await resp.json();
+  const items = data.contents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
+  const videos = [];
+  for (const it of items) {
+    const parsed = parseInnerTubeItem(it, isShorts);
+    if (parsed && parsed.id) {
+      videos.push(parsed);
+    }
+  }
+  return videos;
+}
+
 async function fetchWithTimeout(resource, options = {}) {
   const { timeout = 22000 } = options;
   const controller = new AbortController();
@@ -196,6 +281,31 @@ async function loadTab(tabName, forceRefresh=false) {
 
   showLoader(true, `Mengambil ${titles[tabName]}...`);
   try {
+    if (isStandaloneMode) {
+      let query = 'trending indonesia';
+      let isShorts = false;
+      if (tabName === 'shorts') {
+        query = '#shorts trending indonesia';
+        isShorts = true;
+      } else if (tabName === 'home') {
+        if (currentCategory && currentCategory !== 'Semua') {
+          query = currentCategory + ' indonesia';
+        }
+      } else if (tabName === 'history' || tabName === 'localhistory') {
+        const hist = getLocalHistory();
+        cache[cacheKey] = hist;
+        renderVideos(hist);
+        return;
+      } else if (tabName === 'subscriptions') {
+        query = 'indonesia trending viral';
+      }
+      const videos = await fetchInnerTubeVideos(query, isShorts);
+      cache[cacheKey] = videos;
+      renderVideos(videos);
+      if (videos.length >= 10) showLoadMore(true);
+      return;
+    }
+
     let url = `/api/feed?tab=${tabName}&page=1`;
     if (forceRefresh) url += '&refresh=1';
     if (tabName === 'home' && currentCategory) {
@@ -234,6 +344,19 @@ async function loadMoreVideos() {
 
   const nextPage = currentPage + 1;
   try {
+    if (isStandaloneMode) {
+      let q = currentTab === 'search' ? currentSearchQuery : (currentTab === 'shorts' ? '#shorts trending indonesia' : (currentCategory && currentCategory !== 'Semua' ? currentCategory + ' indonesia' : 'trending indonesia'));
+      q += ` bagian ${nextPage}`;
+      const moreVideos = await fetchInnerTubeVideos(q, currentTab === 'shorts');
+      if (moreVideos && moreVideos.length > 0) {
+        currentPage = nextPage;
+        appendVideos(moreVideos);
+      } else {
+        hasMoreVideos = false;
+        if (btn) btn.innerText = 'Semua video telah ditampilkan';
+      }
+      return;
+    }
     let url = '';
     if (currentTab === 'search') {
       url = `/api/search?q=${encodeURIComponent(currentSearchQuery)}&page=${nextPage}`;
@@ -338,6 +461,15 @@ async function executeSearch(forceRefresh=false) {
 
   showLoader(true, `Mencari "${query}"...`);
   try {
+    if (isStandaloneMode) {
+      const isShorts = query.toLowerCase().includes('#short');
+      const videos = await fetchInnerTubeVideos(query, isShorts);
+      currentQueue = videos;
+      renderVideos(videos);
+      if (videos.length >= 10) showLoadMore(true);
+      return;
+    }
+
     let url = `/api/search?q=${encodeURIComponent(query)}&page=1`;
     if (forceRefresh) url += '&refresh=1';
     const res = await fetchWithTimeout(url, { timeout: 22000 });
@@ -822,6 +954,31 @@ async function playEmbeddedVideo(v) {
     fetch(`/api/stream/preload?url=${encodeURIComponent(nextV.url)}&quality=${selectedQuality}`);
   }
 
+  const standaloneIframe = document.getElementById('standalonePlayer');
+  if (isStandaloneMode && standaloneIframe) {
+    clearTimeout(timer);
+    hideOverlay();
+    if (player) {
+      try { player.pause(); player.removeAttribute('src'); player.load(); } catch (e) {}
+      player.style.display = 'none';
+    }
+    standaloneIframe.style.display = 'block';
+    standaloneIframe.src = `https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&playsinline=1&rel=0&modestbranding=1`;
+    const timelineBox = document.querySelector('.web-timeline-box');
+    if (timelineBox) timelineBox.style.display = 'none';
+    const qualityBox = document.getElementById('watchQualityBadge');
+    if (qualityBox) qualityBox.innerText = 'YouTube Embed • Standalone';
+    return;
+  } else {
+    if (standaloneIframe) {
+      standaloneIframe.style.display = 'none';
+      standaloneIframe.src = '';
+    }
+    if (player) player.style.display = 'block';
+    const timelineBox = document.querySelector('.web-timeline-box');
+    if (timelineBox) timelineBox.style.display = 'flex';
+  }
+
   try {
     const streamUrl = `/api/stream?url=${encodeURIComponent(v.url)}&quality=${selectedQuality}&_t=${Date.now()}`;
     player.src = streamUrl;
@@ -1110,22 +1267,51 @@ function openSettingsModal() {
     else aFirefox.checked = true;
   }
 
-  const setAuto = document.getElementById('setAutoplay');
-  if (setAuto) setAuto.checked = autoplayEnabled;
+  const modeBadge = document.getElementById('modeStatusBadge');
+  const lanSec = document.getElementById('lanAccessSection');
+  if (isStandaloneMode) {
+    if (modeBadge) modeBadge.innerText = '🟢 Mode Mandiri (Standalone di HP)';
+    if (lanSec) lanSec.style.display = 'none';
+  } else {
+    if (modeBadge) modeBadge.innerText = '💻 Mode Server Terhubung';
+    if (lanSec) lanSec.style.display = 'block';
+  }
 
   // Fetch local LAN network address for mobile access
-  fetch('/api/network/info')
-    .then(r => r.json())
-    .then(data => {
-      const code = document.getElementById('mobileLanUrl');
-      if (code && data && data.mobile_url) {
-        code.innerText = data.mobile_url;
-      }
-    })
-    .catch(() => {});
+  if (!isStandaloneMode) {
+    fetch('/api/network/info')
+      .then(r => r.json())
+      .then(data => {
+        const code = document.getElementById('mobileLanUrl');
+        if (code && data && data.mobile_url) {
+          code.innerText = data.mobile_url;
+        }
+      })
+      .catch(() => {});
+  }
 
   const modal = document.getElementById('settingsModal');
   if (modal) modal.style.display = 'flex';
+}
+
+function toggleServerConfig() {
+  if (window.AndroidApp && typeof window.AndroidApp.openServerConfig === 'function') {
+    window.AndroidApp.openServerConfig();
+  } else {
+    const cur = localStorage.getItem('fxtube_server_url') || '';
+    const res = prompt('Masukkan URL Server FX Tube Laptop (misal: http://192.168.1.5:18201):\nKosongkan untuk kembali ke Mode Mandiri:', cur);
+    if (res !== null) {
+      if (res.trim()) {
+        localStorage.setItem('fxtube_server_url', res.trim());
+        localStorage.removeItem('fxtube_standalone');
+        window.location.href = res.trim();
+      } else {
+        localStorage.setItem('fxtube_standalone', '1');
+        localStorage.removeItem('fxtube_server_url');
+        location.reload();
+      }
+    }
+  }
 }
 
 function copyMobileUrl() {

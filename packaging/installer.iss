@@ -1,6 +1,6 @@
 ; Inno Setup Script for FX Tube Windows Installer
 #define MyAppName "FX Tube"
-#define MyAppVersion "1.4.0"
+#define MyAppVersion "1.4.1"
 #define MyAppPublisher "Risqi Nur Fadilah"
 #define MyAppURL "https://github.com/risqinf/fxtube"
 #define MyAppExeName "fxtube.exe"

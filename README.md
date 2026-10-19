@@ -141,8 +141,9 @@ Unduh berkas instalasi sesuai sistem operasi Anda di halaman [GitHub Releases](h
 
 #### Pengguna HP Android (Android 4.0+ & RAM 1GB)
 FX Tube dirancang sangat ringan sehingga dapat berjalan mulus di HP Android jadul (mulai dari Android 4.0 Ice Cream Sandwich hingga Android modern):
-- **Akses Langsung via Wi-Fi (Tanpa Install di HP)**: Hubungkan HP Anda ke Wi-Fi yang sama dengan komputer Anda, lalu buka browser di HP dan ketik `http://<ip-komputer>:18201` (alamat IP otomatis tertera di menu Setting FX Tube). Hanya memakan RAM ~25 MB!
-- **Aplikasi Asli Android APK (`android/`)**: Tersedia proyek aplikasi Android native dengan `minSdkVersion 14` yang hemat RAM, mendukung layar penuh, dan akselerasi grafis perangkat keras lama.
+- **Aplikasi Asli APK Mandiri (`fxtube-android.apk`)**: Cukup pasang file APK di HP Anda, buka, dan langsung tonton YouTube serta Shorts secara mandiri tanpa memerlukan komputer/laptop sama sekali! Sangat hemat RAM (~15-25 MB RAM).
+- **Akses Langsung via Wi-Fi (Tanpa Install di HP)**: Hubungkan HP Anda ke Wi-Fi yang sama dengan komputer Anda, lalu buka browser di HP dan ketik `http://<ip-komputer>:18201` (alamat IP otomatis tertera di menu Setting FX Tube).
+- **Mode Fleksibel**: Anda juga dapat menghubungkan APK Android ke laptop server Anda kapan saja jika ingin sinkronisasi riwayat dan akun Firefox dari laptop.
 - **Mendukung Penuh YouTube Shorts**: Tab khusus Shorts dengan pemutar video vertikal 9:16 yang otomatis memutar berulang (looping) tanpa macet.
 
 ---
