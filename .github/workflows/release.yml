@@ -1,0 +1,88 @@
+name: Release FX Tube
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Multiplatform Binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            ext: ""
+            archive: tar.gz
+          - os: linux
+            arch: arm64
+            ext: ""
+            archive: tar.gz
+          - os: windows
+            arch: amd64
+            ext: ".exe"
+            archive: zip
+          - os: darwin
+            arch: amd64
+            ext: ""
+            archive: tar.gz
+          - os: darwin
+            arch: arm64
+            ext: ""
+            archive: tar.gz
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Build Binary
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
+        run: |
+          OUTPUT_NAME="fxtube-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
+          go build -ldflags="-s -w -extldflags '-static'" -o "$OUTPUT_NAME" .
+          
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            zip "fxtube-${{ matrix.os }}-${{ matrix.arch }}.zip" "$OUTPUT_NAME" README.md
+          else
+            tar -czvf "fxtube-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" "$OUTPUT_NAME" README.md
+          fi
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fxtube-${{ matrix.os }}-${{ matrix.arch }}
+          path: fxtube-${{ matrix.os }}-${{ matrix.arch }}.${{ matrix.archive }}
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true

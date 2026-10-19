@@ -1,0 +1,12 @@
+# Binaries and build artifacts
+dist/
+*.tar.gz
+*.zip
+*.exe
+fxtube
+fxtube-test
+
+# Temporary files
+*.sock
+*.log
+/tmp/

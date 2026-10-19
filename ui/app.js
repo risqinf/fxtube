@@ -1,0 +1,1018 @@
+// FX Tube Application Logic - Modular & Hardware-Optimized
+
+let currentTab = 'home';
+let currentCategory = '';
+const cache = {};
+let currentBrowseVideos = [];
+let currentQueue = [];
+let currentQueueIndex = -1;
+let currentVideo = null;
+let currentPlaylistSource = null;
+
+let selectedQuality = localStorage.getItem('fxtube_quality') || '480';
+let autoplayEnabled = localStorage.getItem('fxtube_autoplay') !== 'false';
+let accountMode = localStorage.getItem('fxtube_account_mode') || 'firefox';
+let playerMode = localStorage.getItem('fxtube_player_mode') || 'web';
+let streamTimeOffset = 0;
+let isTimelineDragging = false;
+
+let mpvPollInterval = null;
+let isMpvActive = false;
+
+const player = document.getElementById('embeddedPlayer');
+
+// SVGs for clean rendering without emoji font bugs
+const ICONS = {
+  play: `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`,
+  eye: `<svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`,
+  sparkles: `<svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.2L21 12l-6.6 2.8L12 22l-2.4-7.2L3 12l6.6-2.8z"/></svg>`,
+  flame: `<svg viewBox="0 0 24 24"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.61 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/></svg>`,
+  music: `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`,
+  gamepad: `<svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>`,
+  news: `<svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 14H4v-4h11v4zm0-5H4V9h11v4zm5 5h-4V9h4v9z"/></svg>`,
+  laptop: `<svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>`,
+  mic: `<svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>`
+};
+
+async function fetchWithTimeout(resource, options = {}) {
+  const { timeout = 22000 } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(resource, {
+      ...options,
+      signal: controller.signal
+    });
+    return response;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+let toastTimer = null;
+function showToast(msg, bg="#2563eb") {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.innerText = msg;
+  t.style.background = bg;
+  t.style.display = 'block';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+
+function setTabActive(tabName) {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const mapping = {'home': 0, 'subscriptions': 1, 'history': 2, 'localhistory': 3, 'watchlater': 4, 'liked': 5};
+  if (mapping[tabName] !== undefined) {
+    const items = document.querySelectorAll('.nav-list .nav-item');
+    if (items[mapping[tabName]]) {
+      items[mapping[tabName]].classList.add('active');
+    }
+  }
+  const chipsBar = document.getElementById('homeChipsBar');
+  if (chipsBar) {
+    chipsBar.style.display = (tabName === 'home') ? 'flex' : 'none';
+  }
+}
+
+function switchToBrowse() {
+  document.getElementById('watchView').style.display = 'none';
+  document.getElementById('browseView').style.display = 'block';
+  if (player) {
+    player.pause();
+    player.removeAttribute('src');
+    player.load();
+  }
+}
+
+function switchToWatch() {
+  document.getElementById('browseView').style.display = 'none';
+  document.getElementById('watchView').style.display = 'block';
+}
+
+function switchToWatchViewDirect() {
+  if (currentQueue && currentQueueIndex >= 0 && currentQueueIndex < currentQueue.length) {
+    stopMPV();
+    playDirectEmbedded(currentQueueIndex, false);
+  } else {
+    switchToWatch();
+  }
+}
+
+// --- TAB LOADING ---
+async function loadTab(tabName, forceRefresh=false) {
+  switchToBrowse();
+  currentTab = tabName;
+  if (tabName === 'home' && !forceRefresh) {
+    currentCategory = '';
+    document.querySelectorAll('.chips-bar .chip').forEach((c, i) => {
+      c.classList.toggle('active', i === 0);
+    });
+  }
+  setTabActive(tabName);
+
+  const titles = {
+    home: 'Home (Beranda)',
+    subscriptions: 'Subscriptions (Feed Akun Anda)',
+    history: 'Riwayat Tontonan (Akun YouTube)',
+    localhistory: 'Riwayat Putar Lokal (FX Tube)',
+    watchlater: 'Watch Later (Tonton Nanti)',
+    liked: 'Liked Videos (Video Disukai)',
+  };
+  document.getElementById('sectionTitle').innerText = titles[tabName] || tabName;
+
+  if (tabName === 'localhistory') {
+    const localItems = JSON.parse(localStorage.getItem('fxtube_local_history') || '[]');
+    cache[tabName] = localItems;
+    renderVideos(localItems);
+    return;
+  }
+
+  // Jika di mode Tamu (Guest) dan membuka tab akun, arahkan dengan ramah ke Pengaturan
+  if (accountMode === 'guest' && ['subscriptions', 'history', 'watchlater', 'liked'].includes(tabName)) {
+    document.getElementById('videoGrid').innerHTML = `
+      <div style="text-align:center;padding:60px 20px;grid-column:1/-1;">
+        <svg viewBox="0 0 24 24" style="width:48px;height:48px;fill:#888;margin-bottom:12px;">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+        </svg>
+        <h3 style="color:#eee;font-size:16px;margin-bottom:8px;">Tab Ini Membutuhkan Akun YouTube</h3>
+        <p style="color:#888;font-size:13px;max-width:440px;margin:0 auto 16px;line-height:1.5;">
+          Anda sedang dalam <strong>Mode Tamu (Publik)</strong>. Untuk melihat ${titles[tabName]}, silakan buka Pengaturan dan pilih <strong>Sinkronkan ke Firefox</strong>.
+        </p>
+        <button class="btn-card-mpv" onclick="openSettingsModal()" style="display:inline-flex;padding:9px 22px;font-size:13px;background:#2563eb;">
+          ${ICONS.play} Buka Pengaturan Akun
+        </button>
+      </div>`;
+    return;
+  }
+
+  const cacheKey = tabName + '::' + currentCategory;
+  if (!forceRefresh && cache[cacheKey]) {
+    renderVideos(cache[cacheKey]);
+    return;
+  }
+
+  showLoader(true, `Mengambil ${titles[tabName]}...`);
+  try {
+    let url = `/api/feed?tab=${tabName}`;
+    if (tabName === 'home' && currentCategory) {
+      url += `&category=${encodeURIComponent(currentCategory)}`;
+    }
+    const res = await fetchWithTimeout(url, { timeout: 22000 });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    cache[cacheKey] = data.videos || [];
+    renderVideos(cache[cacheKey]);
+  } catch (err) {
+    const msg = err.name === 'AbortError' ? 'Koneksi timeout (jaringan atau yt-dlp lambat).' : err.message;
+    document.getElementById('videoGrid').innerHTML = `
+      <div style="text-align:center;padding:50px 20px;grid-column:1/-1;">
+        <p style="color:#ef4444;font-size:15px;margin-bottom:14px;">Gagal memuat: ${escapeHtml(msg)}</p>
+        <button class="btn-card-mpv" onclick="refreshCurrentTab()" style="display:inline-flex;padding:8px 20px;font-size:13px;background:#2563eb;">
+          ${ICONS.play} Coba Lagi
+        </button>
+      </div>`;
+  } finally {
+    showLoader(false);
+  }
+}
+
+function filterCategory(cat, btn) {
+  document.querySelectorAll('.chips-bar .chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  currentCategory = cat;
+  loadTab('home', true);
+}
+
+function refreshCurrentTab() {
+  if (currentTab === 'search') {
+    executeSearch();
+  } else {
+    loadTab(currentTab, true);
+  }
+}
+
+async function executeSearch() {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+
+  switchToBrowse();
+  currentTab = 'search';
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('homeChipsBar').style.display = 'none';
+  document.getElementById('sectionTitle').innerText = `Hasil Pencarian: "${query}"`;
+
+  showLoader(true, `Mencari "${query}"...`);
+  try {
+    const res = await fetchWithTimeout(`/api/search?q=${encodeURIComponent(query)}`, { timeout: 22000 });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    renderVideos(data.videos || []);
+  } catch (err) {
+    const msg = err.name === 'AbortError' ? 'Pencarian timeout.' : err.message;
+    document.getElementById('videoGrid').innerHTML = `
+      <div style="text-align:center;padding:50px 20px;grid-column:1/-1;">
+        <p style="color:#ef4444;font-size:15px;margin-bottom:14px;">Pencarian gagal: ${escapeHtml(msg)}</p>
+        <button class="btn-card-mpv" onclick="executeSearch()" style="display:inline-flex;padding:8px 20px;font-size:13px;background:#2563eb;">
+          ${ICONS.play} Coba Lagi
+        </button>
+      </div>`;
+  } finally {
+    showLoader(false);
+  }
+}
+
+function showLoader(show, text="Memuat...") {
+  document.getElementById('loader').style.display = show ? 'flex' : 'none';
+  document.getElementById('videoGrid').style.display = show ? 'none' : 'grid';
+  document.getElementById('loaderText').innerText = text;
+}
+
+function formatDuration(sec) {
+  if (!sec) return '';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+function renderVideos(videos) {
+  const grid = document.getElementById('videoGrid');
+  grid.innerHTML = '';
+  if (!videos || videos.length === 0) {
+    grid.innerHTML = '<p style="color:#888;grid-column:1/-1;padding:40px 0;text-align:center;">Tidak ada video ditemukan.</p>';
+    return;
+  }
+
+  currentBrowseVideos = videos;
+
+  videos.forEach((v, index) => {
+    const card = document.createElement('div');
+    card.className = 'video-card';
+
+    let thumb = 'https://i.ytimg.com/img/no_thumbnail.jpg';
+    if (v.thumbnails && v.thumbnails.length > 0) {
+      thumb = v.thumbnails[v.thumbnails.length - 1].url || thumb;
+    }
+
+    const durationText = v.duration_string || formatDuration(v.duration);
+
+    card.innerHTML = `
+      <div class="thumb-wrapper" onclick="handleCardClick(${index})">
+        <img class="thumb-img" src="${thumb}" loading="lazy" decoding="async" alt="thumb">
+        ${durationText ? `<span class="duration-badge">${durationText}</span>` : ''}
+      </div>
+      <div class="card-info" onclick="handleCardClick(${index})">
+        <div class="card-title" title="${escapeHtml(v.title)}">${escapeHtml(v.title)}</div>
+        <div class="card-channel">${escapeHtml(v.channel || v.uploader || 'YouTube')}</div>
+        <div class="card-footer">
+          <button class="btn-card-mpv" onclick="event.stopPropagation(); playDirectMPV(${index}, true)" title="Putar di MPV Native (~40MB RAM)">
+            ${ICONS.play} Putar MPV
+          </button>
+          <button class="btn-card-web" onclick="event.stopPropagation(); playDirectEmbedded(${index}, true)" title="Putar di dalam Halaman">
+            ${ICONS.eye} Web
+          </button>
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// --- PLAYBACK ROUTER ---
+function handleCardClick(index) {
+  if (playerMode === 'mpv') {
+    playDirectMPV(index, true);
+  } else {
+    playDirectEmbedded(index, true);
+  }
+}
+
+function recordLocalHistory(v) {
+  try {
+    let history = JSON.parse(localStorage.getItem('fxtube_local_history') || '[]');
+    history = history.filter(item => item.url !== v.url);
+    history.unshift({
+      id: v.id,
+      title: v.title,
+      url: v.url,
+      channel: v.channel || v.uploader,
+      duration: v.duration,
+      duration_string: v.duration_string,
+      thumbnails: v.thumbnails,
+      watchedAt: new Date().toISOString()
+    });
+    if (history.length > 50) history = history.slice(0, 50);
+    localStorage.setItem('fxtube_local_history', JSON.stringify(history));
+  } catch (e) {}
+}
+
+// --- YOUTUBE MIX / PLAYLIST LOADER ---
+async function loadMixPlaylistForVideo(v) {
+  if (!v) return;
+  const sourceKey = (v.url && v.url.includes('list=')) ? v.url : (v.id || v.url);
+  if (currentPlaylistSource === sourceKey && currentQueue.length > 1) {
+    const idx = currentQueue.findIndex(item => (v.id && item.id === v.id) || (v.url && item.url === v.url));
+    if (idx !== -1) currentQueueIndex = idx;
+    renderQueueList();
+    return;
+  }
+
+  currentPlaylistSource = sourceKey;
+  currentQueue = [v];
+  currentQueueIndex = 0;
+  const subtitle = document.getElementById('queueSubtitle');
+  if (subtitle) subtitle.innerText = 'Mengambil YouTube Mix...';
+  renderQueueList();
+
+  try {
+    const res = await fetchWithTimeout(`/api/playlist?id=${encodeURIComponent(v.id || '')}&url=${encodeURIComponent(v.url || '')}`, { timeout: 16000 });
+    const data = await res.json();
+    if (data && data.videos && data.videos.length > 0) {
+      let idx = data.videos.findIndex(item => (v.id && item.id === v.id) || (v.url && item.url === v.url));
+      if (idx === -1) {
+        data.videos.unshift(v);
+        idx = 0;
+      }
+      currentQueue = data.videos;
+      currentQueueIndex = idx;
+      const sub = document.getElementById('queueSubtitle');
+      if (sub) {
+        const isRealPlaylist = v.url && v.url.includes('list=') && !v.url.includes('list=RD');
+        sub.innerText = (isRealPlaylist ? 'Playlist' : 'YouTube Mix') + ` (${currentQueue.length} video)`;
+      }
+      renderQueueList();
+    } else {
+      const sub = document.getElementById('queueSubtitle');
+      if (sub) sub.innerText = '1 video';
+    }
+  } catch (err) {
+    console.warn('Gagal memuat mix:', err);
+    const sub = document.getElementById('queueSubtitle');
+    if (sub) sub.innerText = '1 video (Mix offline)';
+  }
+}
+
+// --- MPV PLAYBACK ---
+async function playDirectMPV(index, fromBrowse = false) {
+  let v = null;
+  if (fromBrowse) {
+    if (!currentBrowseVideos || index < 0 || index >= currentBrowseVideos.length) return;
+    v = currentBrowseVideos[index];
+    loadMixPlaylistForVideo(v);
+  } else {
+    if (!currentQueue || index < 0 || index >= currentQueue.length) return;
+    v = currentQueue[index];
+    currentQueueIndex = index;
+    renderQueueList();
+  }
+
+  if (!v) return;
+  currentVideo = v;
+  recordLocalHistory(v);
+
+  if (player) {
+    player.pause();
+    player.removeAttribute('src');
+    player.load();
+  }
+  showToast(`Membuka di MPV (${selectedQuality}p)...`);
+  showMpvBar(v);
+
+  try {
+    const res = await fetch('/api/play', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        url: v.url,
+        title: v.title,
+        mode: 'video',
+        quality: selectedQuality
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'error') {
+      showToast('Gagal memanggil MPV: ' + (data.error || ''), '#dc2626');
+      hideMpvBar();
+    } else {
+      startMpvPolling();
+    }
+  } catch (e) {
+    showToast('Gagal terhubung ke backend MPV', '#dc2626');
+    hideMpvBar();
+  }
+}
+
+function showMpvBar(v) {
+  const bar = document.getElementById('mpvControllerBar');
+  document.getElementById('mpvBarTitle').innerText = v.title;
+  document.getElementById('mpvBarChannel').innerText = v.channel || v.uploader || 'YouTube';
+  document.getElementById('mpvBtnPause').innerHTML = `<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+  bar.style.display = 'flex';
+  document.getElementById('contentArea').classList.add('has-mpv-bar');
+  isMpvActive = true;
+}
+
+function hideMpvBar() {
+  document.getElementById('mpvControllerBar').style.display = 'none';
+  document.getElementById('contentArea').classList.remove('has-mpv-bar');
+  isMpvActive = false;
+  stopMpvPolling();
+}
+
+function startMpvPolling() {
+  stopMpvPolling();
+  mpvPollInterval = setInterval(async () => {
+    try {
+      const res = await fetch('/api/player/status');
+      const data = await res.json();
+      if (data && data.playing) {
+        isMpvActive = true;
+        const btn = document.getElementById('mpvBtnPause');
+        if (data.paused) {
+          btn.innerHTML = `<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+        } else {
+          btn.innerHTML = `<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+        }
+      } else {
+        if (isMpvActive) {
+          isMpvActive = false;
+          stopMpvPolling();
+          hideMpvBar();
+          if (autoplayEnabled && currentQueueIndex + 1 < currentQueue.length) {
+            showToast('Video selesai, memutar antrean berikutnya...');
+            playDirectMPV(currentQueueIndex + 1);
+          }
+        }
+      }
+    } catch (e) {}
+  }, 1500);
+}
+
+function stopMpvPolling() {
+  if (mpvPollInterval) {
+    clearInterval(mpvPollInterval);
+    mpvPollInterval = null;
+  }
+}
+
+async function toggleMPVPause() {
+  try {
+    await fetchWithTimeout('/api/player/command', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ command: 'toggle_pause' }),
+      timeout: 2500
+    });
+  } catch (e) {}
+}
+
+async function seekMPV(delta) {
+  try {
+    await fetchWithTimeout('/api/player/command', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ command: delta > 0 ? 'seek_forward' : 'seek_backward' }),
+      timeout: 2500
+    });
+    showToast(delta > 0 ? '+10 detik' : '-10 detik');
+  } catch (e) {}
+}
+
+async function stopMPV() {
+  try {
+    await fetchWithTimeout('/api/player/command', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ command: 'stop' }),
+      timeout: 2500
+    });
+  } catch (e) {}
+  hideMpvBar();
+  showToast('Pemutaran MPV dihentikan');
+}
+
+// --- EMBEDDED WEB PLAYER ---
+// --- EMBEDDED WEB PLAYER ---
+function playDirectEmbedded(index, fromBrowse = false) {
+  let v = null;
+  if (fromBrowse) {
+    if (!currentBrowseVideos || index < 0 || index >= currentBrowseVideos.length) return;
+    v = currentBrowseVideos[index];
+    loadMixPlaylistForVideo(v);
+  } else {
+    if (!currentQueue || index < 0 || index >= currentQueue.length) return;
+    v = currentQueue[index];
+    currentQueueIndex = index;
+    renderQueueList();
+  }
+
+  if (!v) return;
+  playEmbeddedVideo(v);
+}
+
+async function playEmbeddedVideo(v) {
+  currentVideo = v;
+  streamTimeOffset = 0;
+  switchToWatch();
+  recordLocalHistory(v);
+  hideMpvBar();
+
+  document.getElementById('watchTitle').innerText = v.title;
+  document.getElementById('watchChannel').innerText = v.channel || v.uploader || 'YouTube';
+  updateQualityButtonsUI();
+
+  const totalSec = v.duration || 0;
+  const curEl = document.getElementById('webTimeCurrent');
+  const totEl = document.getElementById('webTimeTotal');
+  const timeline = document.getElementById('webTimeline');
+  if (curEl) curEl.innerText = '0:00';
+  if (totEl) totEl.innerText = formatDuration(totalSec);
+  if (timeline) {
+    timeline.max = totalSec > 0 ? totalSec : 100;
+    timeline.value = 0;
+  }
+
+  const overlay = document.getElementById('playerLoader');
+  const overlayText = document.getElementById('playerLoaderText');
+  if (overlay) overlay.style.display = 'flex';
+  if (overlayText) overlayText.innerText = `Menyiapkan stream ${selectedQuality}p H.264...`;
+
+  let loaded = false;
+  const hideOverlay = () => {
+    if (!loaded) {
+      loaded = true;
+      if (overlay) overlay.style.display = 'none';
+    }
+  };
+
+  const timer = setTimeout(hideOverlay, 7000);
+
+  player.onloadedmetadata = () => {
+    clearTimeout(timer);
+    hideOverlay();
+  };
+  player.oncanplay = () => {
+    clearTimeout(timer);
+    hideOverlay();
+  };
+  player.onerror = () => {
+    clearTimeout(timer);
+    hideOverlay();
+    const code = player.error ? player.error.code : 0;
+    console.error('Player error code:', code);
+    showToast('Stream Web gagal dimuat. Mengalihkan ke MPV...', '#ef4444');
+    popOutToMPV();
+  };
+
+  player.ontimeupdate = () => {
+    const currentActual = streamTimeOffset + (player.currentTime || 0);
+    const total = currentVideo ? (currentVideo.duration || 0) : 0;
+    const curSpan = document.getElementById('webTimeCurrent');
+    const totSpan = document.getElementById('webTimeTotal');
+    const tSlider = document.getElementById('webTimeline');
+    if (curSpan) curSpan.innerText = formatDuration(Math.floor(currentActual));
+    if (totSpan && total > 0) totSpan.innerText = formatDuration(Math.floor(total));
+    if (tSlider && total > 0 && !isTimelineDragging) {
+      tSlider.max = total;
+      tSlider.value = Math.floor(currentActual);
+    }
+  };
+
+  try {
+    const streamUrl = `/api/stream?url=${encodeURIComponent(v.url)}&quality=${selectedQuality}&_t=${Date.now()}`;
+    player.src = streamUrl;
+    player.load();
+    player.play().catch(e => {
+      console.log('Autoplay waiting for interaction:', e);
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    hideOverlay();
+    showToast('Gagal memuat video: ' + err.message, '#dc2626');
+  }
+}
+
+function seekWeb(delta) {
+  if (!currentVideo) return;
+  const total = currentVideo.duration || 0;
+  const currentActual = streamTimeOffset + (player ? (player.currentTime || 0) : 0);
+  let target = Math.max(0, currentActual + delta);
+  if (total > 0 && target >= total) target = Math.max(0, total - 2);
+  seekWebTo(Math.floor(target));
+}
+
+function seekWebTo(seconds) {
+  if (!currentVideo) return;
+  streamTimeOffset = seconds;
+  const curEl = document.getElementById('webTimeCurrent');
+  if (curEl) curEl.innerText = formatDuration(seconds);
+  const timeline = document.getElementById('webTimeline');
+  if (timeline) timeline.value = seconds;
+
+  showToast(`Melompat ke ${formatDuration(seconds)}`);
+
+  const overlay = document.getElementById('playerLoader');
+  const overlayText = document.getElementById('playerLoaderText');
+  if (overlay) overlay.style.display = 'flex';
+  if (overlayText) overlayText.innerText = `Melompat ke ${formatDuration(seconds)}...`;
+
+  let seekDone = false;
+  const hideOverlay = () => {
+    if (!seekDone) {
+      seekDone = true;
+      if (overlay) overlay.style.display = 'none';
+    }
+  };
+
+  const timer = setTimeout(hideOverlay, 6000);
+  const onReady = () => {
+    clearTimeout(timer);
+    hideOverlay();
+    player.play().catch(() => {});
+    player.removeEventListener('canplay', onReady);
+    player.removeEventListener('loadedmetadata', onReady);
+  };
+  player.addEventListener('canplay', onReady);
+  player.addEventListener('loadedmetadata', onReady);
+
+  player.src = `/api/stream?url=${encodeURIComponent(currentVideo.url)}&quality=${selectedQuality}&start=${seconds}&_t=${Date.now()}`;
+  player.load();
+  player.play().catch(() => {});
+}
+
+function onWebTimelineInput(val) {
+  isTimelineDragging = true;
+  const curEl = document.getElementById('webTimeCurrent');
+  if (curEl) curEl.innerText = formatDuration(parseInt(val, 10));
+}
+
+function onWebTimelineChange(val) {
+  isTimelineDragging = false;
+  seekWebTo(parseInt(val, 10));
+}
+
+function switchQuality(q) {
+  if (selectedQuality === q) return;
+  selectedQuality = q;
+  localStorage.setItem('fxtube_quality', q);
+  updateQualityButtonsUI();
+  if (!currentVideo) return;
+
+  if (isMpvActive) {
+    playDirectMPV(currentQueueIndex >= 0 ? currentQueueIndex : 0, false);
+    return;
+  }
+
+  const currentActual = streamTimeOffset + (player.currentTime || 0);
+  const wasPlaying = !player.paused;
+
+  const overlay = document.getElementById('playerLoader');
+  const overlayText = document.getElementById('playerLoaderText');
+  if (overlay) overlay.style.display = 'flex';
+  if (overlayText) overlayText.innerText = `Beralih ke kualitas ${q}p...`;
+
+  let qDone = false;
+  const hideOverlay = () => {
+    if (!qDone) {
+      qDone = true;
+      if (overlay) overlay.style.display = 'none';
+    }
+  };
+
+  const timer = setTimeout(hideOverlay, 7000);
+
+  const onReady = () => {
+    clearTimeout(timer);
+    hideOverlay();
+    if (wasPlaying) player.play().catch(() => {});
+    player.removeEventListener('loadedmetadata', onReady);
+    player.removeEventListener('canplay', onReady);
+  };
+
+  player.addEventListener('loadedmetadata', onReady);
+  player.addEventListener('canplay', onReady);
+
+  player.onerror = () => {
+    clearTimeout(timer);
+    hideOverlay();
+    showToast(`Kualitas ${q}p gagal di browser. Membuka di MPV...`, '#ef4444');
+    popOutToMPV();
+  };
+
+  const startOffset = Math.floor(currentActual);
+  streamTimeOffset = startOffset;
+  const streamUrl = `/api/stream?url=${encodeURIComponent(currentVideo.url)}&quality=${q}&start=${startOffset}&_t=${Date.now()}`;
+  player.src = streamUrl;
+  player.load();
+  player.play().catch(() => {});
+
+  showToast(`Kualitas diubah ke ${q}p`);
+}
+
+function updateQualityButtonsUI() {
+  const q360 = document.getElementById('q360');
+  const q480 = document.getElementById('q480');
+  const q720 = document.getElementById('q720');
+  if (q360) q360.classList.toggle('active', selectedQuality === '360');
+  if (q480) q480.classList.toggle('active', selectedQuality === '480');
+  if (q720) q720.classList.toggle('active', selectedQuality === '720');
+
+  const labels = {
+    '360': '360p • Ultra Ringan (~10% CPU)',
+    '480': '480p • Seimbang (~15% CPU)',
+    '720': '720p • HD H.264 (~25% CPU)',
+  };
+  const badge = document.getElementById('watchQualityBadge');
+  if (badge) badge.innerText = labels[selectedQuality] || `${selectedQuality}p`;
+  const opt = document.getElementById('specOptText');
+  if (opt) opt.innerText = `${selectedQuality}p H.264`;
+
+  const modeLabels = {
+    'firefox': 'Firefox Sync',
+    'guest': 'Mode Tamu',
+    'custom': 'cookies.txt'
+  };
+  const accBadge = document.getElementById('accountModeBadge');
+  if (accBadge) accBadge.innerText = modeLabels[accountMode] || 'Active';
+
+  const playerLabels = {
+    'mpv': 'MPV Native (~40MB)',
+    'web': 'Embedded Web'
+  };
+  const playBadge = document.getElementById('playerModeBadge');
+  if (playBadge) playBadge.innerText = playerLabels[playerMode] || 'MPV Native';
+}
+
+function playNextInQueue() {
+  if (!currentQueue || currentQueue.length === 0) return;
+  if (currentQueueIndex + 1 < currentQueue.length) {
+    if (isMpvActive || playerMode === 'mpv') {
+      playDirectMPV(currentQueueIndex + 1, false);
+    } else {
+      playDirectEmbedded(currentQueueIndex + 1, false);
+    }
+  } else {
+    showToast('Sudah di video terakhir dalam antrean.');
+  }
+}
+
+function playPrevInQueue() {
+  if (!currentQueue || currentQueue.length === 0) return;
+  if (currentQueueIndex > 0) {
+    if (isMpvActive || playerMode === 'mpv') {
+      playDirectMPV(currentQueueIndex - 1, false);
+    } else {
+      playDirectEmbedded(currentQueueIndex - 1, false);
+    }
+  } else {
+    showToast('Sudah di video pertama dalam antrean.');
+  }
+}
+
+player.onended = () => {
+  if (autoplayEnabled && currentQueueIndex + 1 < currentQueue.length) {
+    showToast('Memutar video selanjutnya...');
+    playNextInQueue();
+  }
+};
+
+function toggleAutoplay(val) {
+  autoplayEnabled = val;
+  localStorage.setItem('fxtube_autoplay', val);
+  showToast(val ? 'Autoplay aktif' : 'Autoplay nonaktif');
+}
+
+function renderQueueList() {
+  const qList = document.getElementById('queueList');
+  if (!qList) return;
+  qList.innerHTML = '';
+  const subtitle = document.getElementById('queueSubtitle');
+  if (subtitle && currentQueue.length > 0) {
+    const isRealPlaylist = currentVideo && currentVideo.url && currentVideo.url.includes('list=') && !currentVideo.url.includes('list=RD');
+    subtitle.innerText = `${isRealPlaylist ? 'Playlist' : 'YouTube Mix'}: Video ${currentQueueIndex + 1} dari ${currentQueue.length}`;
+  }
+
+  currentQueue.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'queue-item' + (idx === currentQueueIndex ? ' active' : '');
+    div.onclick = () => {
+      if (isMpvActive || playerMode === 'mpv') {
+        playDirectMPV(idx, false);
+      } else {
+        playDirectEmbedded(idx, false);
+      }
+    };
+
+    let thumb = 'https://i.ytimg.com/img/no_thumbnail.jpg';
+    if (item.thumbnails && item.thumbnails.length > 0) {
+      thumb = item.thumbnails[0].url || thumb;
+    }
+
+    div.innerHTML = `
+      <div class="queue-thumb">
+        <img src="${thumb}" loading="lazy" decoding="async">
+      </div>
+      <div class="queue-info">
+        <div class="queue-item-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
+        <div class="queue-item-channel">${escapeHtml(item.channel || item.uploader || '')}</div>
+        ${idx === currentQueueIndex ? '<div class="queue-now-badge">SEDANG DIPUTAR</div>' : ''}
+      </div>
+    `;
+    qList.appendChild(div);
+  });
+
+  const activeEl = qList.querySelector('.queue-item.active');
+  if (activeEl) {
+    activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+// --- POP OUT MPV ---
+async function popOutToMPV() {
+  if (!currentVideo) return;
+  const idx = currentQueueIndex >= 0 ? currentQueueIndex : 0;
+  if (player) {
+    player.pause();
+    player.removeAttribute('src');
+    player.load();
+  }
+  switchToBrowse();
+  playDirectMPV(idx, false);
+}
+
+function playPastedUrl() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+  const v = { url, title: 'Video Kustom', channel: 'Direct Link', duration: 0 };
+  currentBrowseVideos = [v];
+  if (playerMode === 'mpv') {
+    playDirectMPV(0, true);
+  } else {
+    playDirectEmbedded(0, true);
+  }
+  document.getElementById('urlInput').value = '';
+}
+
+// --- SETTINGS MODAL ---
+function openSettingsModal() {
+  const pMpv = document.getElementById('playMPV');
+  const pWeb = document.getElementById('playWeb');
+  if (pMpv && pWeb) {
+    if (playerMode === 'web') pWeb.checked = true;
+    else pMpv.checked = true;
+  }
+
+  const s360 = document.getElementById('set360');
+  const s480 = document.getElementById('set480');
+  const s720 = document.getElementById('set720');
+  if (s360 && s480 && s720) {
+    if (selectedQuality === '360') s360.checked = true;
+    else if (selectedQuality === '720') s720.checked = true;
+    else s480.checked = true;
+  }
+
+  const aGuest = document.getElementById('accGuest');
+  const aCustom = document.getElementById('accCustom');
+  const aFirefox = document.getElementById('accFirefox');
+  if (aGuest && aCustom && aFirefox) {
+    if (accountMode === 'guest') aGuest.checked = true;
+    else if (accountMode === 'custom') aCustom.checked = true;
+    else aFirefox.checked = true;
+  }
+
+  const setAuto = document.getElementById('setAutoplay');
+  if (setAuto) setAuto.checked = autoplayEnabled;
+
+  const modal = document.getElementById('settingsModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeSettingsModal() {
+  const modal = document.getElementById('settingsModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function updateSidebarBadges() {
+  const accEl = document.getElementById('accountModeBadge');
+  if (accEl) {
+    accEl.innerText = accountMode === 'firefox' ? 'Firefox Sync' : (accountMode === 'custom' ? 'Cookies.txt' : 'Guest Mode');
+  }
+  const pEl = document.getElementById('playerModeBadge');
+  if (pEl) {
+    pEl.innerText = playerMode === 'mpv' ? 'MPV Native' : 'Embedded Web';
+  }
+  const qEl = document.getElementById('specOptText');
+  if (qEl) {
+    qEl.innerText = `${selectedQuality}p H.264`;
+  }
+}
+
+function saveSettings() {
+  const pMode = document.querySelector('input[name="play_mode"]:checked')?.value || playerMode || 'mpv';
+  const q = document.querySelector('input[name="default_quality"]:checked')?.value || selectedQuality || '480';
+  const acc = document.querySelector('input[name="acc_mode"]:checked')?.value || accountMode || 'firefox';
+  const auto = document.getElementById('setAutoplay')?.checked ?? autoplayEnabled;
+
+  playerMode = pMode;
+  selectedQuality = q;
+  autoplayEnabled = auto;
+  accountMode = acc;
+
+  localStorage.setItem('fxtube_player_mode', pMode);
+  localStorage.setItem('fxtube_quality', q);
+  localStorage.setItem('fxtube_autoplay', auto);
+  localStorage.setItem('fxtube_account_mode', acc);
+
+  // TUTUP MODAL SEGERA AGAR TIDAK MENGGANTUNG
+  closeSettingsModal();
+  showToast(`Pengaturan disimpan: Mode ${pMode.toUpperCase()}`);
+
+  const chkAuto = document.getElementById('chkAutoplay');
+  if (chkAuto) chkAuto.checked = auto;
+  updateQualityButtonsUI();
+  updateSidebarBadges();
+
+  // Sinkronisasi backend di latar belakang tanpa memblokir penutupan modal
+  fetchWithTimeout('/api/account-mode', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ mode: acc }),
+    timeout: 3000
+  }).catch(() => {});
+
+  refreshCurrentTab();
+}
+
+window.onload = async () => {
+  const chkAuto = document.getElementById('chkAutoplay');
+  if (chkAuto) chkAuto.checked = autoplayEnabled;
+  updateQualityButtonsUI();
+  updateSidebarBadges();
+
+  // Tutup modal ketika klik area gelap di luar modal card
+  const modal = document.getElementById('settingsModal');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeSettingsModal();
+    });
+  }
+
+  // Pintasan Keyboard Responsif untuk ThinkPad X201
+  document.addEventListener('keydown', (e) => {
+    const isInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+    if (isInput) {
+      if (e.key === 'Escape') {
+        document.activeElement.blur();
+        closeSettingsModal();
+      }
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      const modalEl = document.getElementById('settingsModal');
+      if (modalEl && modalEl.style.display === 'flex') {
+        closeSettingsModal();
+      } else {
+        switchToBrowse();
+      }
+    } else if (e.key === '/') {
+      e.preventDefault();
+      document.getElementById('searchInput')?.focus();
+    } else if (e.key === ' ') {
+      e.preventDefault();
+      if (isMpvActive) {
+        toggleMPVPause();
+      } else if (player && document.getElementById('watchView')?.style.display === 'block') {
+        if (player.paused) player.play().catch(() => {}); else player.pause();
+      }
+    } else if (e.key === 'ArrowRight') {
+      if (isMpvActive) seekMPV(10);
+      else if (player && document.getElementById('watchView')?.style.display === 'block') {
+        seekWeb(10);
+      }
+    } else if (e.key === 'ArrowLeft') {
+      if (isMpvActive) seekMPV(-10);
+      else if (player && document.getElementById('watchView')?.style.display === 'block') {
+        seekWeb(-10);
+      }
+    }
+  });
+
+  try {
+    await fetchWithTimeout('/api/account-mode', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ mode: accountMode }),
+      timeout: 3000
+    });
+  } catch (e) {}
+
+  loadTab('home');
+};
