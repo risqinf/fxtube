@@ -41,14 +41,17 @@ func (a *App) runYtDlp(target string, maxItems int, startItem int, forceRefresh 
 		"--no-warnings",
 	}
 
-	// Only attach browser cookies if target is an authenticated personal feed
-	// Public search and trending queries do NOT need cookies and will stall/timeout if browser DB is locked
+	// Only attach browser cookies if target is an authenticated personal feed or personal home recommendations
+	// Public search queries do NOT need cookies and will stall/timeout if browser DB is locked
 	isPersonalFeed := strings.Contains(target, "/feed/subscriptions") ||
 		strings.Contains(target, "/feed/history") ||
 		strings.Contains(target, "list=WL") ||
-		strings.Contains(target, "list=LL")
+		strings.Contains(target, "list=LL") ||
+		target == "https://www.youtube.com/" ||
+		target == "https://www.youtube.com" ||
+		strings.Contains(target, "/feed/recommended")
 
-	if isPersonalFeed {
+	if isPersonalFeed && a.accountMode != "guest" {
 		cookieArgs := a.getCookieArgs()
 		args = append(args, cookieArgs...)
 	}
@@ -63,7 +66,7 @@ func (a *App) runYtDlp(target string, maxItems int, startItem int, forceRefresh 
 
 	args = append(args, target)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, getYtDlpPath(), args...)
@@ -85,8 +88,12 @@ func (a *App) runYtDlp(target string, maxItems int, startItem int, forceRefresh 
 		line := scanner.Bytes()
 		var item VideoItem
 		if err := json.Unmarshal(line, &item); err == nil && item.Title != "" {
-			// Skip YouTube Mix playlists or non-video items
-			if strings.Contains(item.URL, "playlist?list=") || strings.Contains(item.ID, "RD") {
+			// Skip YouTube Mix playlists, radio, or non-video items
+			if strings.Contains(item.URL, "playlist?list=") ||
+				strings.Contains(item.ID, "RD") ||
+				strings.HasPrefix(item.Title, "Mix - ") ||
+				strings.HasPrefix(item.Title, "My Mix") ||
+				item.Title == "My Mix" {
 				continue
 			}
 			if strings.Contains(item.URL, "/shorts/") {
@@ -100,6 +107,12 @@ func (a *App) runYtDlp(target string, maxItems int, startItem int, forceRefresh 
 			}
 			if item.URL == "" && item.ID != "" {
 				item.URL = "https://www.youtube.com/watch?v=" + item.ID
+			}
+			if item.ID == "" && strings.Contains(item.URL, "watch?v=") {
+				parts := strings.Split(item.URL, "watch?v=")
+				if len(parts) > 1 {
+					item.ID = strings.Split(parts[1], "&")[0]
+				}
 			}
 			titleLower := strings.ToLower(item.Title)
 			if strings.Contains(titleLower, "#shorts") || strings.Contains(titleLower, "#short") || (item.Duration > 0 && item.Duration <= 61) {

@@ -762,7 +762,7 @@ async function loadTab(tabName, forceRefresh=false) {
   } catch (err) {
     console.warn('[FX Tube] Backend feed timeout/error, activating instant InnerTube fallback:', err);
     try {
-      let q = 'trending indonesia';
+      let q = 'video viral edukasi teknologi populer indonesia';
       if (tabName === 'shorts') q = '#shorts trending indonesia';
       else if (tabName === 'home' && currentCategory && currentCategory !== 'Semua') {
         q = currentCategory + ' indonesia';
@@ -1823,6 +1823,7 @@ function saveSettings(silent = false) {
   playerMode = pMode;
   selectedQuality = q;
   autoplayEnabled = auto;
+  const oldAccMode = accountMode;
   accountMode = acc;
 
   if (acc === 'firefox') {
@@ -1854,6 +1855,13 @@ function saveSettings(silent = false) {
   updateSidebarBadges();
   updateSidebarProfileUI();
   updateCommentsAuthUI();
+
+  if (oldAccMode !== acc) {
+    cache = {};
+    if (['home', 'subscriptions', 'history'].includes(currentTab)) {
+      loadTab(currentTab, true);
+    }
+  }
 
   fetchWithTimeout('/api/account-mode', {
     method: 'POST',
@@ -2155,6 +2163,8 @@ async function submitBrowserLogin(browserName) {
       updateSidebarProfileUI();
       updateCommentsAuthUI();
       closeLoginModal();
+      cache = {};
+      loadTab(currentTab, true);
       showToast(`Sesi login ${browserName} berhasil diimpor!`, '#10b981');
     }
   } catch (err) {
@@ -2172,6 +2182,8 @@ async function logoutGoogleAccount() {
       localStorage.setItem('fxtube_account_mode', 'guest');
       updateSidebarProfileUI();
       updateCommentsAuthUI();
+      cache = {};
+      loadTab(currentTab, true);
       showToast('Berhasil keluar. Mode Tamu aktif.', '#737373');
     }
   } catch (err) {

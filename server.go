@@ -77,9 +77,15 @@ func (a *App) handleFeed(w http.ResponseWriter, r *http.Request) {
 	switch tab {
 	case "home":
 		if category != "" {
-			target = fmt.Sprintf("ytsearch%d:%s", startItem+pageSize-1, category)
+			target = fmt.Sprintf("ytsearch%d:%s indonesia", startItem+pageSize-1, category)
 		} else {
-			target = fmt.Sprintf("ytsearch%d:trending indonesia", startItem+pageSize-1)
+			if (a.accountMode == "firefox" || a.accountMode == "google") && a.firefoxProfile != "" {
+				target = "https://www.youtube.com/"
+			} else if a.accountMode == "custom" && a.customCookies != "" {
+				target = "https://www.youtube.com/"
+			} else {
+				target = fmt.Sprintf("ytsearch%d:video populer viral indonesia", startItem+pageSize-1)
+			}
 		}
 	case "shorts":
 		target = fmt.Sprintf("ytsearch%d:#shorts trending indonesia", startItem+pageSize-1)
@@ -215,6 +221,9 @@ func (a *App) handleAccountMode(w http.ResponseWriter, r *http.Request) {
 				a.profileMu.Unlock()
 				_ = a.saveProfile()
 			}
+			a.feedMu.Lock()
+			a.feedCache = make(map[string]FeedCacheItem)
+			a.feedMu.Unlock()
 			log.Printf("[FX Tube] Mode Akun diubah & disimpan ke: %s (Profil diupdate)\n", a.accountMode)
 		}
 	}

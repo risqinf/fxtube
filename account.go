@@ -214,12 +214,21 @@ func (a *App) handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. Browser session import (Firefox / Chrome / Brave)
-	browser := req.Browser
+	browser := strings.ToLower(req.Browser)
 	if browser == "" {
 		browser = "firefox"
 	}
 
-	a.accountMode = "google"
+	a.accountMode = browser
+	home, _ := os.UserHomeDir()
+	dir := filepath.Join(home, ".config", "fxtube")
+	_ = os.MkdirAll(dir, 0755)
+	_ = os.WriteFile(filepath.Join(dir, "account_mode.txt"), []byte(a.accountMode), 0644)
+
+	a.feedMu.Lock()
+	a.feedCache = make(map[string]FeedCacheItem)
+	a.feedMu.Unlock()
+
 	a.profileMu.Lock()
 	a.googleProfile = GoogleProfile{
 		Name:       fmt.Sprintf("Pengguna %s", strings.Title(browser)),
@@ -251,6 +260,15 @@ func (a *App) handleGoogleLogout(w http.ResponseWriter, r *http.Request) {
 	a.accountMode = "guest"
 	a.profileMu.Unlock()
 	_ = a.saveProfile()
+
+	home, _ := os.UserHomeDir()
+	dir := filepath.Join(home, ".config", "fxtube")
+	_ = os.MkdirAll(dir, 0755)
+	_ = os.WriteFile(filepath.Join(dir, "account_mode.txt"), []byte("guest"), 0644)
+
+	a.feedMu.Lock()
+	a.feedCache = make(map[string]FeedCacheItem)
+	a.feedMu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
