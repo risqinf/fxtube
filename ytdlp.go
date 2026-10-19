@@ -41,8 +41,17 @@ func (a *App) runYtDlp(target string, maxItems int, startItem int, forceRefresh 
 		"--no-warnings",
 	}
 
-	cookieArgs := a.getCookieArgs()
-	args = append(args, cookieArgs...)
+	// Only attach browser cookies if target is an authenticated personal feed
+	// Public search and trending queries do NOT need cookies and will stall/timeout if browser DB is locked
+	isPersonalFeed := strings.Contains(target, "/feed/subscriptions") ||
+		strings.Contains(target, "/feed/history") ||
+		strings.Contains(target, "list=WL") ||
+		strings.Contains(target, "list=LL")
+
+	if isPersonalFeed {
+		cookieArgs := a.getCookieArgs()
+		args = append(args, cookieArgs...)
+	}
 
 	if startItem > 1 {
 		args = append(args, "--playlist-start", fmt.Sprintf("%d", startItem))

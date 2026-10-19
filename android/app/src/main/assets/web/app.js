@@ -760,6 +760,22 @@ async function loadTab(tabName, forceRefresh=false) {
       showLoadMore(true);
     }
   } catch (err) {
+    console.warn('[FX Tube] Backend feed timeout/error, activating instant InnerTube fallback:', err);
+    try {
+      let q = 'trending indonesia';
+      if (tabName === 'shorts') q = '#shorts trending indonesia';
+      else if (tabName === 'home' && currentCategory && currentCategory !== 'Semua') {
+        q = currentCategory + ' indonesia';
+      }
+      const fallbackVideos = await fetchInnerTubeVideos(q, tabName === 'shorts');
+      if (fallbackVideos && fallbackVideos.length > 0) {
+        cache[cacheKey] = fallbackVideos;
+        renderVideos(fallbackVideos);
+        if (fallbackVideos.length >= 10) showLoadMore(true);
+        return;
+      }
+    } catch (e2) {}
+
     const msg = err.name === 'AbortError' ? 'Koneksi timeout (jaringan atau yt-dlp lambat).' : err.message;
     document.getElementById('videoGrid').innerHTML = `
       <div style="text-align:center;padding:50px 20px;grid-column:1/-1;">
@@ -817,7 +833,17 @@ async function loadMoreVideos() {
       if (btn) btn.innerText = 'Semua video telah ditampilkan';
     }
   } catch (err) {
-    console.warn('Gagal memuat halaman berikutnya:', err);
+    console.warn('Gagal memuat halaman berikutnya via backend, mencoba InnerTube fallback:', err);
+    try {
+      let q = currentTab === 'search' ? currentSearchQuery : (currentTab === 'shorts' ? '#shorts trending indonesia' : (currentCategory && currentCategory !== 'Semua' ? currentCategory + ' indonesia' : 'trending indonesia'));
+      q += ` bagian ${nextPage}`;
+      const moreVideos = await fetchInnerTubeVideos(q, currentTab === 'shorts');
+      if (moreVideos && moreVideos.length > 0) {
+        currentPage = nextPage;
+        appendVideos(moreVideos);
+        return;
+      }
+    } catch (e2) {}
     if (btn) btn.innerText = 'Coba lagi memuat video';
   } finally {
     isFetchingMore = false;
@@ -924,6 +950,18 @@ async function executeSearch(forceRefresh=false) {
       showLoadMore(true);
     }
   } catch (err) {
+    console.warn('[FX Tube] Backend search timeout/error, activating instant InnerTube fallback:', err);
+    try {
+      const isShorts = query.toLowerCase().includes('#short');
+      const fallbackVideos = await fetchInnerTubeVideos(query, isShorts);
+      if (fallbackVideos && fallbackVideos.length > 0) {
+        currentQueue = fallbackVideos;
+        renderVideos(fallbackVideos);
+        if (fallbackVideos.length >= 10) showLoadMore(true);
+        return;
+      }
+    } catch (e2) {}
+
     const msg = err.name === 'AbortError' ? 'Pencarian timeout.' : err.message;
     document.getElementById('videoGrid').innerHTML = `
       <div style="text-align:center;padding:50px 20px;grid-column:1/-1;">

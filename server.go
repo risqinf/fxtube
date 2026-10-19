@@ -79,11 +79,7 @@ func (a *App) handleFeed(w http.ResponseWriter, r *http.Request) {
 		if category != "" {
 			target = fmt.Sprintf("ytsearch%d:%s", startItem+pageSize-1, category)
 		} else {
-			if a.accountMode == "firefox" && a.firefoxProfile != "" {
-				target = "https://www.youtube.com/"
-			} else {
-				target = "https://www.youtube.com/feed/trending"
-			}
+			target = fmt.Sprintf("ytsearch%d:trending indonesia", startItem+pageSize-1)
 		}
 	case "shorts":
 		target = fmt.Sprintf("ytsearch%d:#shorts trending indonesia", startItem+pageSize-1)
