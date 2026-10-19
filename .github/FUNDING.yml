@@ -1,0 +1,44 @@
+# ============================================
+# GitHub Sponsors Configuration
+# ============================================
+# This file tells GitHub how to display your
+# funding links on your repository.
+#
+# Documentation:
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+#
+# Uncomment the platforms you want to use
+# and replace with your actual usernames/links.
+# ============================================
+
+# GitHub Sponsors - your GitHub username
+github: risqinf
+
+# Patreon - your Patreon campaign URL slug
+# patreon: your_patreon_campaign
+
+# Ko-fi - your Ko-fi page name
+# ko-fi: your_ko_fi_page
+
+# Buy Me a Coffee - your BMC username
+# buymeacoffee: your_bmc_username
+
+# Open Collective - your open collective slug
+# open_collective: your_open_collective_slug
+
+# Community Bridge - your project slug on Community Bridge
+# community_bridge: your_project_slug
+
+# Liberapay - your Liberapay team/user name
+# liberapay: your_liberapay_name
+
+# IssueHunt - your IssueHunt username
+# issuehunt: your_issuehunt_username
+
+# Otechie - your Otechie team name
+# otechie: your_otechie_team
+
+# Custom funding links - array of label + link pairs
+# You can add multiple custom links (e.g., Saweria, Trakteer, etc.)
+custom:
+  - "https://kofi.risqinf.dev"
