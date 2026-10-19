@@ -165,7 +165,7 @@ function setTabActive(tabName) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.mobile-nav-item').forEach(el => el.classList.remove('active'));
 
-  const mapping = {'home': 0, 'shorts': 1, 'subscriptions': 2, 'history': 3, 'localhistory': 4, 'watchlater': 5, 'liked': 6};
+  const mapping = {'home': 0, 'shorts': 1, 'subscriptions': 2, 'history': 3, 'localhistory': 4, 'watchlater': 5, 'liked': 6, 'downloads': 7};
   if (mapping[tabName] !== undefined) {
     const items = document.querySelectorAll('.nav-list .nav-item');
     if (items[mapping[tabName]]) {
@@ -199,19 +199,28 @@ function stopAllShortsPlayers() {
   }
 }
 
+function stopWebPlayer() {
+  if (player) {
+    try {
+      player.pause();
+      player.removeAttribute('src');
+      player.load();
+    } catch (e) {}
+  }
+  hidePlayPrompt();
+  fetch('/api/stop').catch(() => {});
+}
+
 function switchToBrowse() {
   const shortsView = document.getElementById('shortsView');
   if (shortsView) shortsView.style.display = 'none';
   stopAllShortsPlayers();
 
   document.getElementById('watchView').style.display = 'none';
+  const downloadsView = document.getElementById('downloadsView');
+  if (downloadsView) downloadsView.style.display = 'none';
   document.getElementById('browseView').style.display = 'block';
-  hidePlayPrompt();
-  if (player) {
-    player.pause();
-    player.removeAttribute('src');
-    player.load();
-  }
+  stopWebPlayer();
 }
 
 function switchToWatch() {
@@ -220,18 +229,31 @@ function switchToWatch() {
   stopAllShortsPlayers();
 
   document.getElementById('browseView').style.display = 'none';
+  const downloadsView = document.getElementById('downloadsView');
+  if (downloadsView) downloadsView.style.display = 'none';
   document.getElementById('watchView').style.display = 'block';
 }
 
 function switchToShortsView() {
   document.getElementById('browseView').style.display = 'none';
   document.getElementById('watchView').style.display = 'none';
-  hidePlayPrompt();
-  if (player) {
-    try { player.pause(); player.removeAttribute('src'); player.load(); } catch (e) {}
-  }
+  const downloadsView = document.getElementById('downloadsView');
+  if (downloadsView) downloadsView.style.display = 'none';
+  stopWebPlayer();
   const shortsView = document.getElementById('shortsView');
   if (shortsView) shortsView.style.display = 'block';
+}
+
+function switchToDownloadsView() {
+  document.getElementById('browseView').style.display = 'none';
+  document.getElementById('watchView').style.display = 'none';
+  const shortsView = document.getElementById('shortsView');
+  if (shortsView) shortsView.style.display = 'none';
+  stopAllShortsPlayers();
+  stopWebPlayer();
+  const downloadsView = document.getElementById('downloadsView');
+  if (downloadsView) downloadsView.style.display = 'block';
+  loadDownloadsList();
 }
 
 let shortsReelList = [];
@@ -575,6 +597,12 @@ async function loadTab(tabName, forceRefresh=false) {
     loadShortsReel(forceRefresh);
     return;
   }
+  if (tabName === 'downloads') {
+    currentTab = 'downloads';
+    setTabActive('downloads');
+    switchToDownloadsView();
+    return;
+  }
 
   switchToBrowse();
   currentTab = tabName;
@@ -770,10 +798,14 @@ function appendVideos(newVideos) {
         <div class="card-channel">${escapeHtml(v.channel || v.uploader || 'YouTube')}</div>
         <div class="card-footer">
           <button class="btn-card-web" onclick="event.stopPropagation(); playDirectEmbedded(${cardIndex}, true)" title="Putar di Web Browser (Default)">
-            ${ICONS.eye} Putar Web
+            ${ICONS.eye} Putar
           </button>
           <button class="btn-card-mpv" onclick="event.stopPropagation(); playDirectMPV(${cardIndex}, true)" title="Putar di MPV Native (~40MB RAM)">
             ${ICONS.play} MPV
+          </button>
+          <button class="btn-card-download" onclick="event.stopPropagation(); promptDownloadVideo(${cardIndex})" title="Download Video Offline">
+            <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+            Unduh
           </button>
         </div>
       </div>
@@ -895,10 +927,14 @@ function renderVideos(videos) {
         <div class="card-channel">${escapeHtml(v.channel || v.uploader || 'YouTube')}</div>
         <div class="card-footer">
           <button class="btn-card-web" onclick="event.stopPropagation(); playDirectEmbedded(${index}, true)" title="Putar di Web Browser (Default)">
-            ${ICONS.eye} Putar Web
+            ${ICONS.eye} Putar
           </button>
           <button class="btn-card-mpv" onclick="event.stopPropagation(); playDirectMPV(${index}, true)" title="Putar di MPV Native (~40MB RAM)">
             ${ICONS.play} MPV
+          </button>
+          <button class="btn-card-download" onclick="event.stopPropagation(); promptDownloadVideo(${index})" title="Download Video Offline">
+            <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+            Unduh
           </button>
         </div>
       </div>
@@ -1000,22 +1036,20 @@ async function playDirectMPV(index, fromBrowse = false) {
     v = currentBrowseVideos[index];
     loadMixPlaylistForVideo(v);
   } else {
-    if (!currentQueue || index < 0 || index >= currentQueue.length) return;
-    v = currentQueue[index];
-    currentQueueIndex = index;
-    renderQueueList();
+    if (currentQueue && index >= 0 && index < currentQueue.length) {
+      v = currentQueue[index];
+      currentQueueIndex = index;
+      renderQueueList();
+    } else if (currentVideo) {
+      v = currentVideo;
+    }
   }
 
   if (!v) return;
   currentVideo = v;
   recordLocalHistory(v);
 
-  hidePlayPrompt();
-  if (player) {
-    player.pause();
-    player.removeAttribute('src');
-    player.load();
-  }
+  stopWebPlayer();
   showToast(`Membuka di MPV (${selectedQuality}p)...`);
   showMpvBar(v);
 
@@ -1202,22 +1236,6 @@ function userResumePlayback() {
   }
 }
 
-function playViaEmbedFallback(v) {
-  const standaloneIframe = document.getElementById('standalonePlayer');
-  if (!standaloneIframe) return;
-  if (player) {
-    try { player.pause(); player.removeAttribute('src'); player.load(); } catch (e) {}
-    player.style.display = 'none';
-  }
-  standaloneIframe.style.display = 'block';
-  standaloneIframe.src = `https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&playsinline=1&rel=0&modestbranding=1`;
-  const timelineBox = document.querySelector('.web-timeline-box');
-  if (timelineBox) timelineBox.style.display = 'none';
-  const qualityBox = document.getElementById('watchQualityBadge');
-  if (qualityBox) qualityBox.innerText = 'YouTube Embed (Cadangan Otomatis)';
-  showToast('Memutar via YouTube Embed (Stream cadangan)', '#2563eb');
-}
-
 async function playEmbeddedVideo(v) {
   currentVideo = v;
   streamTimeOffset = 0;
@@ -1298,8 +1316,8 @@ async function playEmbeddedVideo(v) {
     clearTimeout(timer);
     hideOverlay();
     if (!player.src || player.src === '' || player.src.endsWith('/')) return;
-    console.warn('HTML5 stream playback error, seamlessly falling back to clean embed player for', v.id);
-    playViaEmbedFallback(v);
+    console.warn('HTML5 stream playback error for', v.id);
+    showToast('Gagal memuat stream video. Anda dapat membuka di MPV atau mengunduhnya.', '#ef4444');
   };
 
   player.ontimeupdate = () => {
@@ -1322,30 +1340,9 @@ async function playEmbeddedVideo(v) {
     fetch(`/api/stream/preload?url=${encodeURIComponent(nextV.url)}&quality=${selectedQuality}`);
   }
 
-  const standaloneIframe = document.getElementById('standalonePlayer');
-  if (isStandaloneMode && standaloneIframe) {
-    clearTimeout(timer);
-    hideOverlay();
-    if (player) {
-      try { player.pause(); player.removeAttribute('src'); player.load(); } catch (e) {}
-      player.style.display = 'none';
-    }
-    standaloneIframe.style.display = 'block';
-    standaloneIframe.src = `https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&playsinline=1&rel=0&modestbranding=1`;
-    const timelineBox = document.querySelector('.web-timeline-box');
-    if (timelineBox) timelineBox.style.display = 'none';
-    const qualityBox = document.getElementById('watchQualityBadge');
-    if (qualityBox) qualityBox.innerText = 'YouTube Embed • Standalone';
-    return;
-  } else {
-    if (standaloneIframe) {
-      standaloneIframe.style.display = 'none';
-      standaloneIframe.src = '';
-    }
-    if (player) player.style.display = 'block';
-    const timelineBox = document.querySelector('.web-timeline-box');
-    if (timelineBox) timelineBox.style.display = 'flex';
-  }
+  if (player) player.style.display = 'block';
+  const timelineBox = document.querySelector('.web-timeline-box');
+  if (timelineBox) timelineBox.style.display = 'flex';
 
   try {
     const streamUrl = `/api/stream?url=${encodeURIComponent(v.url)}&quality=${selectedQuality}&_t=${Date.now()}`;
@@ -1587,15 +1584,34 @@ function renderQueueList() {
 // --- POP OUT MPV ---
 async function popOutToMPV() {
   if (!currentVideo) return;
-  const idx = currentQueueIndex >= 0 ? currentQueueIndex : 0;
+  const v = currentVideo;
   hidePlayPrompt();
-  if (player) {
-    player.pause();
-    player.removeAttribute('src');
-    player.load();
+  stopWebPlayer();
+  showToast(`Membuka di MPV (${selectedQuality}p)...`);
+  showMpvBar(v);
+
+  try {
+    const res = await fetch('/api/play', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        url: v.url,
+        title: v.title,
+        mode: 'video',
+        quality: selectedQuality
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'error') {
+      showToast('Gagal memanggil MPV: ' + (data.error || ''), '#dc2626');
+      hideMpvBar();
+    } else {
+      startMpvPolling();
+    }
+  } catch (e) {
+    showToast('Gagal terhubung ke backend MPV', '#dc2626');
+    hideMpvBar();
   }
-  switchToBrowse();
-  playDirectMPV(idx, false);
 }
 
 function playPastedUrl() {
@@ -1635,65 +1651,22 @@ function openSettingsModal() {
     else aFirefox.checked = true;
   }
 
-  const modeBadge = document.getElementById('modeStatusBadge');
-  const lanSec = document.getElementById('lanAccessSection');
-  if (isStandaloneMode) {
-    if (modeBadge) modeBadge.innerHTML = '<span class="online-indicator-dot" style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;margin-right:6px;"></span><span>Mode Mandiri (Standalone di HP)</span>';
-    if (lanSec) lanSec.style.display = 'none';
-  } else {
-    if (modeBadge) modeBadge.innerHTML = '<span class="online-indicator-dot" style="display:inline-block;width:8px;height:8px;background:#38bdf8;border-radius:50%;margin-right:6px;"></span><span>Mode Server Terhubung</span>';
-    if (lanSec) lanSec.style.display = 'block';
-  }
+  const autoEl = document.getElementById('setAutoplay');
+  if (autoEl) autoEl.checked = autoplayEnabled;
 
-  // Fetch local LAN network address for mobile access
-  if (!isStandaloneMode) {
-    fetch('/api/network/info')
-      .then(r => r.json())
-      .then(data => {
-        const code = document.getElementById('mobileLanUrl');
-        if (code && data && data.mobile_url) {
-          code.innerText = data.mobile_url;
-        }
-      })
-      .catch(() => {});
-  }
+  // Fetch current download directory
+  fetch('/api/downloads/config')
+    .then(r => r.json())
+    .then(d => {
+      const inp = document.getElementById('settingDownloadDirInput');
+      if (inp && d && d.download_dir) {
+        inp.value = d.download_dir;
+      }
+    })
+    .catch(() => {});
 
   const modal = document.getElementById('settingsModal');
   if (modal) modal.style.display = 'flex';
-}
-
-function toggleServerConfig() {
-  if (window.AndroidApp && typeof window.AndroidApp.openServerConfig === 'function') {
-    window.AndroidApp.openServerConfig();
-  } else {
-    const cur = localStorage.getItem('fxtube_server_url') || '';
-    const res = prompt('Masukkan URL Server FX Tube Laptop (misal: http://192.168.1.5:18201):\nKosongkan untuk kembali ke Mode Mandiri:', cur);
-    if (res !== null) {
-      if (res.trim()) {
-        localStorage.setItem('fxtube_server_url', res.trim());
-        localStorage.removeItem('fxtube_standalone');
-        window.location.href = res.trim();
-      } else {
-        localStorage.setItem('fxtube_standalone', '1');
-        localStorage.removeItem('fxtube_server_url');
-        location.reload();
-      }
-    }
-  }
-}
-
-function copyMobileUrl() {
-  const code = document.getElementById('mobileLanUrl');
-  const url = code ? code.innerText : '';
-  if (url && navigator.clipboard) {
-    navigator.clipboard.writeText(url).then(() => {
-      showToast('Link HP disalin: ' + url, '#10b981');
-    }).catch(() => {
-      showToast('Buka di browser HP: ' + url, '#2563eb');
-    });
-  } else if (url) {
-    showToast('Buka di browser HP: ' + url, '#2563eb');
-  }
 }
 
 function closeSettingsModal() {
@@ -2172,4 +2145,351 @@ function prependNewComment(c) {
     </div>
   `;
   listEl.insertBefore(newCard, listEl.firstChild);
+}
+
+// --- DOWNLOADS & OFFLINE LIBRARY ---
+let pendingDownloadVideo = null;
+let downloadsPollTimer = null;
+
+function promptDownloadVideo(arg) {
+  let v = null;
+  if (typeof arg === 'number') {
+    if (currentBrowseVideos && arg >= 0 && arg < currentBrowseVideos.length) {
+      v = currentBrowseVideos[arg];
+    }
+  } else if (arg && typeof arg === 'object') {
+    v = arg;
+  }
+  if (!v) return;
+  pendingDownloadVideo = v;
+  openDownloadModal(v);
+}
+
+function promptDownloadCurrentVideo() {
+  if (currentVideo) {
+    promptDownloadVideo(currentVideo);
+  } else {
+    showToast('Pilih video terlebih dahulu', '#eab308');
+  }
+}
+
+function openDownloadModal(v) {
+  const modal = document.getElementById('downloadModal');
+  if (!modal) return;
+  const thumbEl = document.getElementById('downloadModalThumb');
+  const titleEl = document.getElementById('downloadModalTitle');
+  const channelEl = document.getElementById('downloadModalChannel');
+
+  if (titleEl) titleEl.innerText = v.title || 'Video YouTube';
+  if (channelEl) channelEl.innerText = v.channel || v.uploader || 'YouTube';
+  if (thumbEl) {
+    let thumb = 'https://i.ytimg.com/img/no_thumbnail.jpg';
+    if (v.thumbnails && v.thumbnails.length > 0) {
+      thumb = v.thumbnails[v.thumbnails.length - 1].url || v.thumbnails[0].url || thumb;
+    } else if (v.thumbnail) {
+      thumb = v.thumbnail;
+    }
+    thumbEl.src = thumb;
+  }
+  modal.style.display = 'flex';
+}
+
+function closeDownloadModal() {
+  const modal = document.getElementById('downloadModal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function confirmStartDownload() {
+  if (!pendingDownloadVideo) {
+    closeDownloadModal();
+    return;
+  }
+  const qRadio = document.querySelector('input[name="dlQuality"]:checked');
+  const quality = qRadio ? qRadio.value : '720';
+
+  let thumb = '';
+  if (pendingDownloadVideo.thumbnails && pendingDownloadVideo.thumbnails.length > 0) {
+    thumb = pendingDownloadVideo.thumbnails[pendingDownloadVideo.thumbnails.length - 1].url || pendingDownloadVideo.thumbnails[0].url || '';
+  } else if (pendingDownloadVideo.thumbnail) {
+    thumb = pendingDownloadVideo.thumbnail;
+  }
+
+  const payload = {
+    url: pendingDownloadVideo.url || ('https://www.youtube.com/watch?v=' + (pendingDownloadVideo.id || '')),
+    id: pendingDownloadVideo.id || '',
+    title: pendingDownloadVideo.title || '',
+    channel: pendingDownloadVideo.channel || pendingDownloadVideo.uploader || '',
+    thumbnail: thumb,
+    quality: quality
+  };
+
+  closeDownloadModal();
+  showToast(`Memulai proses unduh (${quality === 'audio' ? 'Audio M4A' : quality + 'p'})... Cek tab Unduhan.`, '#2563eb');
+
+  try {
+    const res = await fetch('/api/downloads/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      showToast('Unduhan ditambahkan ke antrean!', '#10b981');
+      startDownloadsPolling();
+      if (currentTab === 'downloads') {
+        loadDownloadsList();
+      }
+    } else {
+      showToast('Gagal memulai unduhan: ' + (data.error || ''), '#dc2626');
+    }
+  } catch (e) {
+    showToast('Gagal mengirim request unduhan', '#dc2626');
+  }
+}
+
+async function loadDownloadsList() {
+  const grid = document.getElementById('downloadsGrid');
+  if (!grid) return;
+
+  try {
+    const res = await fetch('/api/downloads/list');
+    const data = await res.json();
+    const list = (data && data.downloads) ? data.downloads : [];
+    const dir = data.download_dir || '';
+    const dirEl = document.getElementById('downloadsCurrentPath');
+    if (dirEl && dir) dirEl.innerText = dir;
+
+    if (list.length === 0) {
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column: 1 / -1; padding: 48px 16px; text-align: center; color: #888;">
+          <svg viewBox="0 0 24 24" style="width: 48px; height: 48px; fill: #444; margin-bottom: 12px;"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+          <div style="font-size: 16px; font-weight: 500; color: #ccc;">Belum ada video yang diunduh</div>
+          <div style="font-size: 12px; margin-top: 6px;">Klik tombol "Unduh" pada video manapun untuk menyimpannya ke penyimpanan lokal agar bisa ditonton offline.</div>
+        </div>
+      `;
+      return;
+    }
+
+    let hasActiveDownloads = false;
+
+    grid.innerHTML = list.map(item => {
+      const isDone = item.status === 'completed';
+      const isDownloading = item.status === 'downloading';
+      const isError = item.status === 'error';
+      if (isDownloading) hasActiveDownloads = true;
+
+      const thumb = item.thumbnail || 'https://i.ytimg.com/img/no_thumbnail.jpg';
+      const pct = Math.min(100, Math.max(0, Math.round(item.progress || 0)));
+
+      return `
+        <div class="download-card" id="dl-${escapeHtml(item.id)}">
+          <div class="download-card-thumb-wrap">
+            <img src="${thumb}" alt="${escapeHtml(item.title)}" loading="lazy">
+            <span class="badge-dl-quality">${item.quality === 'audio' ? 'Audio M4A' : item.quality + 'p'}</span>
+            ${item.file_size_text ? `<span class="badge-dl-size">${escapeHtml(item.file_size_text)}</span>` : ''}
+          </div>
+          <div class="download-card-body">
+            <div class="download-card-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
+            <div class="download-card-meta">${escapeHtml(item.channel || 'Offline')}</div>
+            
+            ${isDownloading ? `
+              <div class="dl-progress-box">
+                <div class="dl-progress-info">
+                  <span>Mengunduh...</span>
+                  <span>${pct}%</span>
+                </div>
+                <div class="dl-progress-bar-bg">
+                  <div class="dl-progress-bar-fill" style="width: ${pct}%;"></div>
+                </div>
+              </div>
+            ` : ''}
+
+            ${isError ? `
+              <div style="font-size:11px;color:#ef4444;margin:6px 0;line-height:1.3;">
+                Error: ${escapeHtml(item.error || 'Gagal mengunduh')}
+              </div>
+            ` : ''}
+
+            <div class="download-card-actions">
+              ${isDone ? `
+                <button class="btn-dl-play" onclick="playOfflineVideo('${escapeHtml(item.id)}', '${escapeHtml(item.title).replace(/'/g, "\\'")}', '${escapeHtml(item.channel).replace(/'/g, "\\'")}')" title="Putar di Web Player">
+                  <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Putar
+                </button>
+                <button class="btn-dl-play" onclick="playOfflineMPV('${escapeHtml(item.id)}', '${escapeHtml(item.title).replace(/'/g, "\\'")}', '${escapeHtml(item.channel).replace(/'/g, "\\'")}')" title="Putar di MPV Native" style="background:#1e293b;border-color:#334155;color:#94a3b8;">
+                  <svg viewBox="0 0 24 24"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg> MPV
+                </button>
+              ` : ''}
+              <button class="btn-dl-delete" onclick="deleteDownload('${escapeHtml(item.id)}')" title="Hapus Berkas Unduhan">
+                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                ${isDownloading ? 'Batal' : 'Hapus'}
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    if (hasActiveDownloads) {
+      startDownloadsPolling();
+    } else if (currentTab !== 'downloads') {
+      stopDownloadsPolling();
+    }
+  } catch (err) {
+    grid.innerHTML = '<div style="color:#ef4444;padding:20px;grid-column:1/-1;">Gagal memuat daftar unduhan offline.</div>';
+  }
+}
+
+function startDownloadsPolling() {
+  if (downloadsPollTimer) return;
+  downloadsPollTimer = setInterval(() => {
+    if (currentTab === 'downloads') {
+      loadDownloadsList();
+    } else {
+      fetch('/api/downloads/list')
+        .then(r => r.json())
+        .then(data => {
+          const list = (data && data.downloads) ? data.downloads : [];
+          const stillDownloading = list.some(item => item.status === 'downloading');
+          if (!stillDownloading) {
+            stopDownloadsPolling();
+            showToast('Semua unduhan selesai!', '#10b981');
+          }
+        })
+        .catch(() => {});
+    }
+  }, 2000);
+}
+
+function stopDownloadsPolling() {
+  if (downloadsPollTimer) {
+    clearInterval(downloadsPollTimer);
+    downloadsPollTimer = null;
+  }
+}
+
+async function deleteDownload(id) {
+  if (!confirm('Hapus video unduhan ini dari penyimpanan lokal?')) return;
+  try {
+    const res = await fetch('/api/downloads/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      showToast('Berkas unduhan berhasil dihapus', '#10b981');
+      loadDownloadsList();
+    } else {
+      showToast('Gagal menghapus unduhan: ' + (data.error || ''), '#ef4444');
+    }
+  } catch (e) {
+    showToast('Error koneksi saat menghapus unduhan', '#ef4444');
+  }
+}
+
+function playOfflineVideo(id, title, channel) {
+  stopWebPlayer();
+  hideMpvBar();
+  switchToWatch();
+
+  document.getElementById('watchTitle').innerText = title || 'Video Offline';
+  document.getElementById('watchChannel').innerText = channel || 'Penyimpanan Lokal';
+  const badge = document.getElementById('watchQualityBadge');
+  if (badge) badge.innerText = 'Offline (Penyimpanan Lokal)';
+
+  currentVideo = {
+    id: id,
+    title: title || 'Video Offline',
+    channel: channel || 'Penyimpanan Lokal',
+    url: '/api/downloads/play?id=' + encodeURIComponent(id),
+    duration: 0
+  };
+
+  const overlay = document.getElementById('playerLoader');
+  if (overlay) overlay.style.display = 'none';
+
+  player.src = '/api/downloads/play?id=' + encodeURIComponent(id);
+  player.load();
+  player.play().catch(e => {
+    console.warn('Autoplay offline video deferred:', e);
+    showPlayPrompt();
+  });
+  showToast('Memutar video dari penyimpanan lokal (Offline)', '#10b981');
+}
+
+async function playOfflineMPV(id, title, channel) {
+  stopWebPlayer();
+  showToast('Membuka video offline di MPV...');
+  showMpvBar({ title: title || 'Video Offline', channel: channel || 'Penyimpanan Lokal' });
+
+  try {
+    const res = await fetch('/api/play', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: '/api/downloads/play?id=' + encodeURIComponent(id),
+        title: title || 'Video Offline',
+        mode: 'video',
+        quality: '1080'
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'error') {
+      showToast('Gagal memanggil MPV: ' + (data.error || ''), '#dc2626');
+      hideMpvBar();
+    } else {
+      startMpvPolling();
+    }
+  } catch (e) {
+    showToast('Gagal terhubung ke backend MPV', '#dc2626');
+    hideMpvBar();
+  }
+}
+
+async function saveSettingDownloadDir() {
+  const inp = document.getElementById('settingDownloadDirInput');
+  const newDir = inp ? inp.value.trim() : '';
+  if (!newDir) {
+    showToast('Path folder tidak boleh kosong', '#ef4444');
+    return;
+  }
+  try {
+    const res = await fetch('/api/downloads/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ download_dir: newDir })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      showToast('Folder penyimpanan berhasil diperbarui: ' + data.download_dir, '#10b981');
+      if (inp) inp.value = data.download_dir;
+      const curPath = document.getElementById('downloadsCurrentPath');
+      if (curPath) curPath.innerText = data.download_dir;
+    } else {
+      showToast('Gagal menyimpan folder unduhan', '#ef4444');
+    }
+  } catch (e) {
+    showToast('Error koneksi saat menyimpan folder', '#ef4444');
+  }
+}
+
+function openDownloadFolderConfig() {
+  openSettingsModal();
+  const inp = document.getElementById('settingDownloadDirInput');
+  if (inp) {
+    setTimeout(() => inp.focus(), 250);
+  }
+}
+
+function continueAsGuest() {
+  accountMode = 'guest';
+  localStorage.setItem('fxtube_account_mode', 'guest');
+  updateQualityButtonsUI();
+  closeLoginModal();
+  showToast('Menggunakan FX Tube sebagai Tamu (Default)');
+}
+
+function openOfficialGoogleLogin() {
+  window.open('https://accounts.google.com/ServiceLogin?service=youtube', '_blank');
+  showToast('Silakan login di tab Google, lalu sambungkan via Handle atau Impor Sesi.');
 }

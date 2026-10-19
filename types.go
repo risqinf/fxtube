@@ -117,6 +117,10 @@ type App struct {
 
 	commentsCache map[string][]CommentItem
 	commentsMu    sync.RWMutex
+
+	downloadDir string
+	downloads   map[string]*DownloadItem
+	downloadMu  sync.RWMutex
 }
 
 // GoogleProfile represents the logged in Google/YouTube user
@@ -152,4 +156,36 @@ type GoogleLoginRequest struct {
 	Avatar     string `json:"avatar"`
 	ChannelURL string `json:"channel_url"`
 	Browser    string `json:"browser"`     // "firefox", "chrome", "brave"
+}
+
+// DownloadItem represents a downloaded or active download video
+type DownloadItem struct {
+	ID           string  `json:"id"`
+	Title        string  `json:"title"`
+	Channel      string  `json:"channel"`
+	Thumbnail    string  `json:"thumbnail"`
+	Quality      string  `json:"quality"`
+	FilePath     string  `json:"file_path"`
+	FileName     string  `json:"file_name"`
+	FileSize     int64   `json:"file_size"`
+	FileSizeText string  `json:"file_size_text"`
+	Progress     float64 `json:"progress"`
+	Status       string  `json:"status"` // "downloading", "completed", "error"
+	Error        string  `json:"error,omitempty"`
+	CreatedAt    int64   `json:"created_at"`
+}
+
+// StartDownloadRequest payload for starting a video download
+type StartDownloadRequest struct {
+	URL       string `json:"url"`
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Channel   string `json:"channel"`
+	Thumbnail string `json:"thumbnail"`
+	Quality   string `json:"quality"`
+}
+
+// DownloadConfigRequest payload for configuring download directory
+type DownloadConfigRequest struct {
+	DownloadDir string `json:"download_dir"`
 }

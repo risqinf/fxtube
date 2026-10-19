@@ -44,6 +44,11 @@ func (a *App) setupRoutes() http.Handler {
 	mux.HandleFunc("/api/account/logout", a.handleGoogleLogout)
 	mux.HandleFunc("/api/comments", a.handleComments)
 	mux.HandleFunc("/api/comments/create", a.handleCreateComment)
+	mux.HandleFunc("/api/downloads/start", a.handleStartDownload)
+	mux.HandleFunc("/api/downloads/list", a.handleListDownloads)
+	mux.HandleFunc("/api/downloads/delete", a.handleDeleteDownload)
+	mux.HandleFunc("/api/downloads/config", a.handleDownloadConfig)
+	mux.HandleFunc("/api/downloads/play", a.handleStreamLocalDownload)
 	mux.HandleFunc("/api/ping", a.handlePing)
 
 	return mux

@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -70,13 +72,39 @@ func (a *App) startMpv(req PlayRequest) error {
 
 	_ = os.Remove(a.mpvSockPath)
 
-	if req.Mode == "audio" {
+	targetURL := req.URL
+	if strings.Contains(targetURL, "/api/downloads/play") {
+		uParts := strings.Split(targetURL, "id=")
+		if len(uParts) > 1 {
+			id := uParts[1]
+			a.downloadMu.RLock()
+			if item, ok := a.downloads[id]; ok && item.FilePath != "" && fileExists(item.FilePath) {
+				targetURL = item.FilePath
+			}
+			a.downloadMu.RUnlock()
+		}
+	}
+
+	if fileExists(targetURL) {
+		mpvArgs = append(mpvArgs,
+			"--hwdec=no",
+			"--vd-lavc-threads=4",
+			"--vo=gpu,wlshm,x11",
+			"--demuxer-max-bytes=24MiB",
+			"--demuxer-readahead-secs=10",
+			"--input-ipc-server="+a.mpvSockPath,
+			"--autofit=960x540",
+			"--geometry=65%x65%",
+			fmt.Sprintf("--title=FX Tube: %s", req.Title),
+			targetURL,
+		)
+	} else if req.Mode == "audio" {
 		mpvArgs = append(mpvArgs,
 			"--no-video",
 			"--ytdl-format=bestaudio[acodec^=mp4a]/bestaudio/best",
 			"--input-ipc-server="+a.mpvSockPath,
 			fmt.Sprintf("--title=FX Tube Audio: %s", req.Title),
-			req.URL,
+			targetURL,
 		)
 	} else {
 		// Hardware-safe MPV configuration for ThinkPad X201:
@@ -97,12 +125,13 @@ func (a *App) startMpv(req PlayRequest) error {
 			"--geometry=65%x65%",
 			"--ytdl-format="+formatString,
 			fmt.Sprintf("--title=FX Tube: %s", req.Title),
-			req.URL,
+			targetURL,
 		)
 	}
 
 	a.mpvMu.Lock()
 	a.mpvCmd = exec.Command("mpv", mpvArgs...)
+	a.mpvCmd.Env = os.Environ()
 	a.currentPlaying = &PlayItem{
 		URL:     req.URL,
 		Title:   req.Title,
@@ -111,12 +140,18 @@ func (a *App) startMpv(req PlayRequest) error {
 	}
 	if err := a.mpvCmd.Start(); err != nil {
 		a.mpvMu.Unlock()
+		log.Printf("[FX Tube] Gagal menjalankan mpv: %v\n", err)
 		return err
 	}
 	a.mpvMu.Unlock()
 
+	log.Printf("[FX Tube] MPV dijalankan: %s (%s)\n", req.Title, req.URL)
+
 	go func() {
-		_ = a.mpvCmd.Wait()
+		err := a.mpvCmd.Wait()
+		if err != nil {
+			log.Printf("[FX Tube] MPV selesai/keluar: %v\n", err)
+		}
 		a.mpvMu.Lock()
 		a.mpvCmd = nil
 		a.currentPlaying = nil

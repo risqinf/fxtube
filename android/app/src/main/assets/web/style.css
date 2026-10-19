@@ -1568,3 +1568,150 @@ video#embeddedPlayer {
   font-size: 12px;
 }
 
+/* CARD DOWNLOAD BUTTON */
+.btn-card-download {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+.btn-card-download:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+.btn-card-download svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+/* DOWNLOADS VIEW & OFFLINE CARDS */
+.downloads-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+}
+.download-card {
+  background: #171717;
+  border: 1px solid #262626;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.15s;
+  position: relative;
+}
+.download-card:hover {
+  border-color: #3b82f6;
+}
+.download-badge-quality {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  z-index: 2;
+}
+.download-badge-size {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #10b981;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  z-index: 2;
+}
+.download-progress-box {
+  padding: 8px 12px;
+  background: #141414;
+  border-top: 1px solid #242424;
+}
+.download-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #282828;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.download-progress-fill {
+  height: 100%;
+  background: #3b82f6;
+  transition: width 0.3s ease;
+}
+.download-progress-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: #aaa;
+}
+.download-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid #222;
+}
+.btn-dl-play {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-dl-play:hover {
+  background: #15803d;
+}
+.btn-dl-play svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+.btn-dl-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #262626;
+  color: #ef4444;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-dl-delete:hover {
+  background: #dc2626;
+  color: #fff;
+}
+.btn-dl-delete svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+

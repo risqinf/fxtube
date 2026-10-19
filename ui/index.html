@@ -43,12 +43,16 @@
         <svg viewBox="0 0 24 24"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
         <span>Liked Videos</span>
       </li>
+      <li class="nav-item" id="navDownloads" onclick="loadTab('downloads')">
+        <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+        <span>Unduhan (Offline)</span>
+      </li>
     </ul>
     <div class="spec-info">
       <div>Akun: <span id="accountModeBadge" class="spec-badge">Mode Tamu</span></div>
       <div>Player: <span id="playerModeBadge" class="spec-badge">Embedded Web</span></div>
       <div>Resolusi: <span id="specOptText">480p H.264</span></div>
-      <div style="margin-top: 4px; color: #555;">FX Tube v1.4.2</div>
+      <div style="margin-top: 4px; color: #555;">FX Tube v1.4.3</div>
     </div>
 
     <!-- BOTTOM LEFT SIDEBAR CHANNEL / ACCOUNT CARD -->
@@ -173,7 +177,33 @@
         <div id="infiniteSentinel" style="height:20px;width:100%;"></div>
       </div>
 
-      <!-- WATCH VIEW (EMBEDDED) -->
+      <!-- DOWNLOADS VIEW (OFFLINE LIBRARY) -->
+      <div id="downloadsView" class="downloads-view" style="display:none;">
+        <div class="downloads-header-row" style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 8px 20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2 class="section-title" style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
+              <svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:#ef4444;"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+              <span>Video Terunduh (Offline)</span>
+              <span id="downloadsCountBadge" class="comments-count-badge">0 Video</span>
+            </h2>
+            <div id="downloadsDirText" style="font-size:11px;color:#888;">Folder: Memuat...</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="header-btn" onclick="openDownloadFolderConfig()" title="Ubah Lokasi Folder Unduhan" style="font-size:12px;padding:6px 12px;">
+              <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor;margin-right:6px;"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+              Ubah Folder
+            </button>
+            <button class="refresh-btn" onclick="loadDownloadsList()">
+              <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              Segarkan
+            </button>
+          </div>
+        </div>
+
+        <div id="downloadsGrid" class="video-grid" style="padding-top:10px;"></div>
+      </div>
+
+      <!-- WATCH VIEW (NATIVE CLEAN PLAYER) -->
       <div id="watchView" class="watch-view">
         <div class="watch-layout">
 
@@ -181,7 +211,6 @@
           <div class="player-column">
             <div class="video-container">
               <video id="embeddedPlayer" controls autoplay playsinline></video>
-              <iframe id="standalonePlayer" class="standalone-iframe" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="display:none;width:100%;height:100%;border:none;background:#000;"></iframe>
               <div id="playerLoader" class="player-loader-overlay">
                 <div class="spinner"></div>
                 <p id="playerLoaderText">Menyiapkan stream H.264...</p>
@@ -239,6 +268,12 @@
                 <button class="ctrl-btn ctrl-btn-primary" onclick="popOutToMPV()" title="Buka di jendela MPV (~40MB RAM)">
                   <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
                   Ke MPV
+                </button>
+
+                <!-- DOWNLOAD VIDEO BUTTON -->
+                <button class="ctrl-btn" onclick="promptDownloadCurrentVideo()" title="Download video ini ke penyimpanan lokal untuk ditonton offline" style="background:#2563eb;color:#fff;">
+                  <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+                  Download
                 </button>
 
                 <!-- BACK TO GRID -->
@@ -513,36 +548,16 @@
         </label>
       </div>
 
-      <div class="form-group" style="border-top:1px solid #282828;padding-top:12px;" id="serverModeSection">
-        <label class="form-label">Mode Operasi Aplikasi:</label>
-        <div style="background:#151515;border:1px solid #333;border-radius:8px;padding:10px 14px;margin-bottom:8px;">
-          <div id="modeStatusBadge" style="font-size:12px;color:#10b981;font-weight:bold;margin-bottom:4px;display:flex;align-items:center;">
-            <span class="online-indicator-dot" style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;margin-right:6px;"></span>
-            <span>Mode Mandiri (Standalone di HP)</span>
-          </div>
-          <div style="font-size:11px;color:#888;">Memutar video YouTube & Shorts langsung di HP tanpa perlu laptop menyala.</div>
+      <div class="form-group" style="border-top:1px solid #282828;padding-top:12px;">
+        <label class="form-label" style="display:flex;align-items:center;gap:6px;">
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:#ef4444;"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+          Folder Penyimpanan Unduhan (Offline):
+        </label>
+        <div style="display:flex;gap:8px;margin-bottom:6px;">
+          <input type="text" id="settingDownloadDirInput" class="search-input" style="flex:1;" placeholder="/home/.../Downloads/fxtube">
+          <button class="search-btn" onclick="saveSettingDownloadDir()" style="padding:6px 14px;">Simpan</button>
         </div>
-        <div id="connectServerBox" style="display:flex;gap:8px;">
-          <button class="header-btn" onclick="toggleServerConfig()" style="width:100%;padding:7px;font-size:12px;justify-content:center;">
-            <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor;margin-right:6px;"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-            Atur Koneksi Server Laptop (Opsional)
-          </button>
-        </div>
-      </div>
-
-      <div class="form-group" style="border-top:1px solid #282828;padding-top:12px;" id="lanAccessSection">
-        <label class="form-label">Akses HP / Android di Jaringan Lokal (Wi-Fi):</label>
-        <div style="background:#151515;border:1px solid #333;border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <div>
-            <div style="font-size:11px;color:#888;">Buka link ini di browser HP Android (Android 4.0+):</div>
-            <code id="mobileLanUrl" style="color:#38bdf8;font-size:13px;font-weight:bold;user-select:all;">http://127.0.0.1:18201</code>
-          </div>
-          <button class="header-btn" onclick="copyMobileUrl()" style="padding:4px 10px;font-size:11px;">Salin Link</button>
-        </div>
-      </div>
-
-      <div style="font-size:11px;color:#666;border-top:1px solid #282828;padding-top:10px;margin-top:12px;line-height:1.5;">
-        <div><strong>Dukungan Mobile Android:</strong> Bekerja mandiri langsung di HP (RAM &lt; 25MB), kompatibel Android 4.0+ dan YouTube Shorts vertikal.</div>
+        <div style="font-size:11px;color:#888;">Semua video dan musik yang diunduh akan disimpan otomatis ke folder ini.</div>
       </div>
 
       <div class="modal-actions">
@@ -565,7 +580,20 @@
       </div>
 
       <div style="font-size:12px;color:#aaa;line-height:1.5;margin-bottom:16px;">
-        Hubungkan channel YouTube Anda untuk menampilkan foto profil di pojok kiri bawah desktop, memuat subscriptions, dan ikut berkomentar di video. FX Tube 100% lokal dan super ringan tanpa tracking.
+        Hubungkan akun Google atau channel YouTube Anda untuk menampilkan foto profil di sidebar, memuat subscription, dan ikut berkomentar di video. FX Tube 100% lokal dan super aman tanpa telemetri.
+      </div>
+
+      <!-- OPTION 0: RESMI LOGIN DENGAN GOOGLE / YOUTUBE -->
+      <div class="form-group" style="background:#181818;border:1px solid #333;border-radius:8px;padding:14px;margin-bottom:14px;">
+        <label class="form-label" style="display:flex;align-items:center;gap:6px;font-size:13px;color:#fff;">
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:#4285f4;"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>
+          Login Langsung via Akun Google Resmi
+        </label>
+        <div style="font-size:11px;color:#aaa;margin-bottom:10px;">Buka halaman login resmi Google / YouTube untuk mengautentikasi akun Anda:</div>
+        <button class="btn-login-google" onclick="openOfficialGoogleLogin()" style="width:100%;justify-content:center;padding:10px;font-size:13px;background:#2563eb;">
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:currentColor;"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>
+          Buka Halaman Sign-In Akun Google
+        </button>
       </div>
 
       <!-- OPTION 1: HUBUNGI HANDLE / CHANNEL -->
@@ -608,6 +636,78 @@
           Tetap sebagai Mode Tamu
         </button>
         <button class="refresh-btn" onclick="closeLoginModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DOWNLOAD VIDEO -->
+  <div id="downloadModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header-row" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div class="modal-title" style="margin-bottom:0;display:flex;align-items:center;gap:10px;">
+          <svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:#ef4444;"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+          Download Video ke Penyimpanan Lokal
+        </div>
+        <button class="modal-close-btn" onclick="closeDownloadModal()" title="Tutup (Esc)">
+          <svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:currentColor;"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+
+      <div id="downloadModalMeta" style="display:flex;gap:12px;background:#161616;padding:10px;border-radius:8px;border:1px solid #282828;margin-bottom:16px;">
+        <img id="downloadModalThumb" src="" alt="thumb" style="width:120px;height:68px;border-radius:6px;object-fit:cover;">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;">
+          <div id="downloadModalTitle" style="font-size:13px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">Judul Video</div>
+          <div id="downloadModalChannel" style="font-size:11px;color:#888;margin-top:4px;">Channel Name</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Pilih Resolusi Video:</label>
+        <div class="radio-group" id="downloadQualityOptions">
+          <label class="radio-card">
+            <input type="radio" name="dlQuality" value="1080">
+            <div class="radio-label">
+              <div>1080p (Full HD)</div>
+              <div style="font-size:11px;color:#888;">Kualitas terbaik, tajam dan jernih</div>
+            </div>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="dlQuality" value="720" checked>
+            <div class="radio-label">
+              <div>720p (HD - Rekomendasi)</div>
+              <div style="font-size:11px;color:#888;">Seimbang antara kualitas gambar & ukuran file</div>
+            </div>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="dlQuality" value="480">
+            <div class="radio-label">
+              <div>480p (Hemat Penyimpanan)</div>
+              <div style="font-size:11px;color:#888;">Ukuran file kecil, pas untuk perangkat jadul</div>
+            </div>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="dlQuality" value="360">
+            <div class="radio-label">
+              <div>360p (Sangat Hemat)</div>
+              <div style="font-size:11px;color:#888;">Download super cepat untuk koneksi lambat</div>
+            </div>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="dlQuality" value="audio">
+            <div class="radio-label">
+              <div>Audio M4A / MP3 (Hanya Suara)</div>
+              <div style="font-size:11px;color:#888;">Hanya mengunduh audio lagu atau podcast</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="display:flex;justify-content:space-between;align-items:center;">
+        <button class="ctrl-btn" onclick="closeDownloadModal()">Batal</button>
+        <button class="btn-login-google" onclick="confirmStartDownload()" style="background:#2563eb;padding:8px 18px;font-size:13px;">
+          <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+          Mulai Download
+        </button>
       </div>
     </div>
   </div>

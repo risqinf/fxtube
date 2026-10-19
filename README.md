@@ -21,6 +21,7 @@ Watching YouTube in modern web browsers (such as Chrome or Edge) can be frustrat
 - **Smooth Playlists & Infinite Feed**: Next videos preload seamlessly in the background, and the home feed supports live refresh and infinite scroll.
 - **Keeps Your Account**: Syncs subscriptions, history, and playlists from your existing browser (Firefox, Chrome, Brave, Edge) or link your YouTube channel handle (`@handle`). Default mode is Guest (Tamu) with 1-click Google login.
 - **Comments & Interactive Community**: Read and post comments directly on any video with your channel profile avatar and name.
+- **Download & Offline Library**: Download YouTube videos (1080p, 720p, 480p, 360p or Audio M4A) directly to customizable local storage with restriction bypass. Browse and watch your offline library anytime.
 - **Pure SVG Vector Icons**: Completely free of emojis, utilizing crisp, hardware-accelerated SVG icons across the entire interface.
 - **Zero Configuration**: Bundled with helpers or auto-downloads dependencies on startup.
 
@@ -100,6 +101,7 @@ Hal itu wajar, karena situs web YouTube modern saat ini sangat berat. Setiap kal
 - **Sangat Hemat RAM & CPU**: Menggunakan sumber daya komputer yang jauh lebih sedikit dibanding membuka YouTube di tab browser biasa.
 - **Tetap Bisa Pakai Akun Anda**: Sinkronisasi akun Google/YouTube via handle channel (`@handle`) atau browser Anda. Default adalah **Mode Tamu** dengan opsi login Google 1-klik kapan saja.
 - **Bisa Berkomentar Langsung**: Tulis dan baca komentar video YouTube secara langsung dengan foto profil dan nama akun/channel Anda.
+- **Download Video & Putar Offline**: Unduh video YouTube (1080p, 720p, 480p, 360p, atau Audio M4A) langsung ke penyimpanan lokal secara otomatis dengan bypass pembatasan. Tonton koleksi video offline kapan saja tanpa koneksi internet.
 - **Ikon Vektor SVG Murni (Tanpa Emoji)**: Seluruh tampilan antarmuka menggunakan ikon SVG tajam dan profesional yang ringan dan konsisten di semua layar.
 - **Siap Pakai (Zero Setup)**: Bundling biner sudah lengkap atau otomatis mengunduh alat bantu saat pertama kali dibuka jika belum ada.
 
