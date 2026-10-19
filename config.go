@@ -1,9 +1,13 @@
 package main
 
 import (
+	"io"
+	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -42,17 +46,134 @@ func findFirefoxProfile() string {
 	return ""
 }
 
-// getYtDlpPath returns the optimal path for the yt-dlp binary
+// getYtDlpPath returns the optimal path for the yt-dlp binary (local bundled, system, or user directory)
 func getYtDlpPath() string {
-	if p, err := exec.LookPath("yt-dlp"); err == nil {
+	binName := "yt-dlp"
+	if runtime.GOOS == "windows" {
+		binName = "yt-dlp.exe"
+	}
+
+	// 1. Check directory alongside running executable (bundled distribution)
+	if execPath, err := os.Executable(); err == nil {
+		execDir := filepath.Dir(execPath)
+		candidate := filepath.Join(execDir, binName)
+		if fi, err := os.Stat(candidate); err == nil && !fi.IsDir() {
+			return candidate
+		}
+	}
+
+	// 2. Check system PATH
+	if p, err := exec.LookPath(binName); err == nil {
 		return p
 	}
+
+	// 3. Check user config bin directory
 	home, _ := os.UserHomeDir()
-	localBin := filepath.Join(home, ".config", "fxtube", "bin", "yt-dlp")
-	if _, err := os.Stat(localBin); err == nil {
-		return localBin
+	candidate := filepath.Join(home, ".config", "fxtube", "bin", binName)
+	if runtime.GOOS == "windows" {
+		if appData := os.Getenv("LOCALAPPDATA"); appData != "" {
+			candidate = filepath.Join(appData, "fxtube", "bin", binName)
+		}
 	}
-	return "yt-dlp"
+	if fi, err := os.Stat(candidate); err == nil && !fi.IsDir() {
+		return candidate
+	}
+
+	return binName
+}
+
+// getFfmpegPath returns the optimal path for the ffmpeg binary
+func getFfmpegPath() string {
+	binName := "ffmpeg"
+	if runtime.GOOS == "windows" {
+		binName = "ffmpeg.exe"
+	}
+
+	// 1. Check directory alongside running executable (bundled distribution)
+	if execPath, err := os.Executable(); err == nil {
+		execDir := filepath.Dir(execPath)
+		candidate := filepath.Join(execDir, binName)
+		if fi, err := os.Stat(candidate); err == nil && !fi.IsDir() {
+			return candidate
+		}
+	}
+
+	// 2. Check system PATH
+	if p, err := exec.LookPath(binName); err == nil {
+		return p
+	}
+
+	// 3. Check user config bin directory
+	home, _ := os.UserHomeDir()
+	candidate := filepath.Join(home, ".config", "fxtube", "bin", binName)
+	if runtime.GOOS == "windows" {
+		if appData := os.Getenv("LOCALAPPDATA"); appData != "" {
+			candidate = filepath.Join(appData, "fxtube", "bin", binName)
+		}
+	}
+	if fi, err := os.Stat(candidate); err == nil && !fi.IsDir() {
+		return candidate
+	}
+
+	return binName
+}
+
+// ensureYtDlp verifies yt-dlp is available, or downloads standalone binary automatically
+func ensureYtDlp() {
+	currentPath := getYtDlpPath()
+	if _, err := exec.LookPath(currentPath); err == nil {
+		return
+	}
+	if fi, err := os.Stat(currentPath); err == nil && !fi.IsDir() {
+		return
+	}
+
+	binName := "yt-dlp"
+	downloadURL := "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
+	if runtime.GOOS == "windows" {
+		binName = "yt-dlp.exe"
+		downloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+	} else if runtime.GOOS == "darwin" {
+		downloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+	}
+
+	home, _ := os.UserHomeDir()
+	targetDir := filepath.Join(home, ".config", "fxtube", "bin")
+	if runtime.GOOS == "windows" {
+		if appData := os.Getenv("LOCALAPPDATA"); appData != "" {
+			targetDir = filepath.Join(appData, "fxtube", "bin")
+		}
+	}
+	_ = os.MkdirAll(targetDir, 0755)
+	targetFile := filepath.Join(targetDir, binName)
+
+	log.Printf("[FX Tube] yt-dlp belum terpasang, mengunduh otomatis ke %s...\n", targetFile)
+	resp, err := http.Get(downloadURL)
+	if err != nil {
+		log.Printf("[FX Tube] Gagal mengunduh yt-dlp: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("[FX Tube] Gagal mengunduh yt-dlp: status HTTP %d\n", resp.StatusCode)
+		return
+	}
+
+	out, err := os.OpenFile(targetFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		log.Printf("[FX Tube] Gagal menulis berkas yt-dlp: %v\n", err)
+		return
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		log.Printf("[FX Tube] Gagal menyimpan berkas yt-dlp: %v\n", err)
+		return
+	}
+	_ = os.Chmod(targetFile, 0755)
+	log.Printf("[FX Tube] yt-dlp berhasil dipasang mandiri di: %s\n", targetFile)
 }
 
 // getCookieArgs constructs the cookie parameters based on current account mode

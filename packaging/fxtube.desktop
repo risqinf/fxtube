@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=FX Tube
+Comment=Ultra-lightweight YouTube client for low-spec hardware
+Exec=fxtube
+Icon=fxtube
+Terminal=false
+Type=Application
+Categories=AudioVideo;Video;Player;
+StartupNotify=true
+Keywords=youtube;video;streaming;player;fxtube;

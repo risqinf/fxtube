@@ -68,6 +68,17 @@ type PlayerStatusResponse struct {
 	Duration float64 `json:"duration"`
 }
 
+// VideoInfoResponse contains video metadata and available streaming qualities
+type VideoInfoResponse struct {
+	ID             string   `json:"id"`
+	Title          string   `json:"title"`
+	URL            string   `json:"url"`
+	Channel        string   `json:"channel"`
+	Duration       int64    `json:"duration"`
+	DurationString string   `json:"duration_string"`
+	Qualities      []string `json:"qualities"`
+}
+
 // PlayItem represents the currently playing media
 type PlayItem struct {
 	URL     string `json:"url"`
@@ -91,6 +102,9 @@ type App struct {
 
 	feedCache map[string]FeedCacheItem
 	feedMu    sync.RWMutex
+
+	qualitiesCache map[string][]string
+	qualitiesMu    sync.RWMutex
 
 	currentRemux *exec.Cmd
 	remuxMu      sync.Mutex

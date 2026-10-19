@@ -63,7 +63,8 @@ func (a *App) startMpv(req PlayRequest) error {
 	}
 
 	maxHeight := "480"
-	if req.Quality == "360" || req.Quality == "720" {
+	switch req.Quality {
+	case "144", "240", "360", "480", "720", "1080":
 		maxHeight = req.Quality
 	}
 

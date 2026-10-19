@@ -17,60 +17,48 @@ Watching YouTube in modern web browsers (such as Chrome or Edge) can be frustrat
 **FX Tube** is a lightweight desktop app that lets you watch YouTube smoothly without the browser bloat:
 - **Zero Ads**: Streams video directly from YouTube's media servers, completely bypassing video ads, banners, and tracking scripts.
 - **Ultra Lightweight**: Uses a fraction of the CPU and RAM compared to opening YouTube in a standard browser tab.
+- **Dynamic Resolutions (144p - 1080p)**: Automatically detects and unlocks all available video resolutions up to 1080p Full HD.
+- **Smooth Playlists & Infinite Feed**: Next videos preload seamlessly in the background, and the home feed supports live refresh and infinite scroll.
 - **Keeps Your Account**: Syncs subscriptions, history, and playlists from your existing browser (Firefox, Chrome, Brave, Edge) without needing to re-enter your password.
-- **Built for Any Hardware**: Runs smoothly on modern systems as well as 15-year-old laptops (like ThinkPad X201 or Core 2 Duo PCs).
+- **Zero Configuration**: Bundled with helpers or auto-downloads dependencies on startup.
 
 ---
 
-### What Do You Need to Install?
+### Download & Installation Packages
 
-#### Requirements:
-You only need two lightweight helper tools installed on your system:
-1. **yt-dlp** &mdash; Used by FX Tube to fetch video details and stream links.
-2. **ffmpeg** &mdash; Used to merge the separate video and audio streams seamlessly.
-3. *(Optional)* **mpv** &mdash; Only needed if you want to use the optional native MPV player mode for ultra-low (~40 MB) RAM usage.
-
-#### What You DO NOT Need to Install:
-- **No new browser needed**: FX Tube automatically uses the browser already built into your operating system (Microsoft Edge on Windows, Chrome/Safari on macOS, Firefox/Chromium on Linux).
-- **No runtimes needed**: No need to install Node.js, Python, Java, or heavy dependencies. FX Tube is distributed as a single standalone executable.
-
----
-
-### Installation Guide
+Choose the installer or bundle matching your operating system from [GitHub Releases](https://github.com/risqinf/fxtube/releases):
 
 #### Windows
-1. Download `fxtube-windows-amd64.zip` from [Releases](https://github.com/risqinf/fxtube/releases).
-2. Extract the ZIP archive.
-3. Ensure `yt-dlp.exe` and `ffmpeg.exe` are in your system PATH (or placed in the same folder as `fxtube.exe`).
-   * *Tip:* You can install both via winget in PowerShell:
-     ```powershell
-     winget install yt-dlp Gyan.FFmpeg
-     ```
-4. Double-click `fxtube-windows-amd64.exe` to run.
+- **Setup Wizard (.exe installer)**: Download `fxtube-windows-amd64-installer.exe` and run. It installs FX Tube to Program Files, creates Start Menu and Desktop shortcuts, and bundles all dependencies.
+- **MSI Installer (.msi)**: Download `fxtube-windows-amd64.msi` for automated deployment.
+- **Standalone Portable (.zip)**: Download `fxtube-windows-amd64.zip`. Extract anywhere and double-click `fxtube.exe`. `yt-dlp` and `ffmpeg` are already bundled inside!
 
-#### Linux
-1. Install `yt-dlp` and `ffmpeg` using your package manager:
-   * **Arch / Manjaro**: `sudo pacman -S yt-dlp ffmpeg`
-   * **Ubuntu / Debian**: `sudo apt install yt-dlp ffmpeg`
-   * **Fedora**: `sudo dnf install yt-dlp ffmpeg`
-2. Download `fxtube-linux-amd64.tar.gz` (or `fxtube-linux-arm64.tar.gz` for Raspberry Pi) from [Releases](https://github.com/risqinf/fxtube/releases).
-3. Extract and run:
-   ```bash
-   tar -xvf fxtube-linux-amd64.tar.gz
-   chmod +x fxtube-linux-amd64
-   ./fxtube-linux-amd64
-   ```
+#### Linux (Debian, Ubuntu, Fedora, Arch Linux)
+- **Ubuntu / Debian / Linux Mint (.deb)**:
+  ```bash
+  sudo apt install ./fxtube_*_amd64.deb
+  ```
+  *(Automatically registers Start Menu application icon and resolves dependencies)*
+- **Fedora / openSUSE / RHEL (.rpm)**:
+  ```bash
+  sudo dnf install ./fxtube-*.x86_64.rpm
+  ```
+- **Arch Linux / Manjaro / EndeavourOS (.pkg.tar.zst)**:
+  ```bash
+  sudo pacman -U ./fxtube-*-x86_64.pkg.tar.zst
+  ```
+- **Generic Tarball (.tar.gz)**:
+  ```bash
+  tar -xvf fxtube-linux-amd64.tar.gz
+  ./fxtube
+  ```
 
 #### macOS (Apple Silicon M1/M2/M3/M4)
-1. Install `yt-dlp` and `ffmpeg` via Homebrew:
+1. Download `fxtube-darwin-arm64.tar.gz` from [Releases](https://github.com/risqinf/fxtube/releases).
+2. Extract and run:
    ```bash
-   brew install yt-dlp ffmpeg
-   ```
-2. Download and extract `fxtube-darwin-arm64.tar.gz` from [Releases](https://github.com/risqinf/fxtube/releases).
-3. Make executable and run:
-   ```bash
-   chmod +x fxtube-darwin-arm64
-   ./fxtube-darwin-arm64
+   tar -xvf fxtube-darwin-arm64.tar.gz
+   ./fxtube
    ```
 
 ---
@@ -98,60 +86,51 @@ Hal itu wajar, karena situs web YouTube modern saat ini sangat berat. Setiap kal
 
 **FX Tube** hadir sebagai aplikasi pemutar YouTube di desktop yang dirancang khusus agar **super ringan, bersih, dan hemat baterai**:
 - **Bebas Iklan 100%**: Langsung memutar video dari server media YouTube tanpa memuat iklan banner maupun video sponsor.
+- **Resolusi Lengkap Dinamis (144p hingga 1080p)**: Otomatis mendeteksi resolusi video dan menyediakan pilihan dari 144p (hemat kuota) hingga 1080p Full HD.
+- **Playlist Cepat & Mulus**: Video selanjutnya di playlist sudah di-preload secara otomatis di latar belakang sehingga pergantian video instan dan tidak macet.
+- **Beranda Segar & Scroll Tanpa Batas**: Tombol "Muat Ulang" langsung menyegarkan rekomendasi terkini dari YouTube, dan daftar video otomatis memuat ke bawah (infinite scroll).
 - **Sangat Hemat RAM & CPU**: Menggunakan sumber daya komputer yang jauh lebih sedikit dibanding membuka YouTube di tab browser biasa.
-- **Tetap Bisa Pakai Akun Anda**: Langsung membaca daftar Subscribe, Riwayat, dan Playlist dari browser yang biasa Anda pakai (Firefox, Chrome, Brave, Edge) tanpa perlu mengetik ulang password.
-- **Dukungan Komputer Lawas**: Mampu berjalan mulus di laptop lama (bahkan laptop berusia 10-15 tahun seperti ThinkPad X201 atau PC Core 2 Duo).
+- **Tetap Bisa Pakai Akun Anda**: Langsung membaca daftar Subscribe, Riwayat, dan Playlist dari browser Anda (Firefox, Chrome, Brave, Edge) tanpa perlu login ulang.
+- **Siap Pakai (Zero Setup)**: Bundling biner sudah lengkap atau otomatis mengunduh alat bantu saat pertama kali dibuka jika belum ada.
 
 ---
 
-### Apa Saja yang Perlu Di-install dan yang TIDAK Perlu?
+### Pilihan Installer & Paket Aplikasi Siap Pakai
 
-#### Yang PERLU Di-install (Hanya 2 Program Ringan):
-Agar FX Tube bisa mengambil dan memutar video dari YouTube, sistem Anda membutuhkan dua alat bantu:
-1. **yt-dlp** &mdash; Alat yang bertugas mencari video dan mengambil link stream dari YouTube.
-2. **ffmpeg** &mdash; Alat yang bertugas menggabungkan stream gambar dan suara secara langsung.
-3. *(Opsional)* **mpv** &mdash; Hanya dibutuhkan bila Anda ingin memakai mode pemutar MPV Native (opsi darurat yang sangat hemat RAM, hanya ~40 MB).
-
-#### Yang TIDAK PERLU Di-install:
-- **TIDAK PERLU install browser baru**: FX Tube otomatis mendeteksi dan memakai browser yang sudah ada di komputer Anda (Microsoft Edge di Windows, Chrome/Safari di Mac, atau Firefox di Linux).
-- **TIDAK PERLU install Node.js, Python, atau database**: FX Tube berbentuk file program mandiri (*standalone executable*) yang langsung siap dijalankan.
-
----
-
-### Panduan Pemasangan & Menjalankan
+Unduh berkas instalasi sesuai sistem operasi Anda di halaman [GitHub Releases](https://github.com/risqinf/fxtube/releases):
 
 #### Pengguna Windows
-1. Unduh file `fxtube-windows-amd64.zip` dari halaman [Releases](https://github.com/risqinf/fxtube/releases).
-2. Ekstrak file ZIP tersebut.
-3. Pastikan `yt-dlp` dan `ffmpeg` sudah terpasang. Cara termudah cukup buka PowerShell dan ketik:
-   ```powershell
-   winget install yt-dlp Gyan.FFmpeg
-   ```
-4. Klik dua kali pada file `fxtube-windows-amd64.exe` untuk langsung menggunakannya.
+- **Installer Wizard (.exe)**: Unduh `fxtube-windows-amd64-installer.exe` lalu klik dua kali. Program akan terpasang rapi di Start Menu dan Desktop Anda, lengkap dengan alat bantu di dalamnya.
+- **Installer MSI (.msi)**: Unduh `fxtube-windows-amd64.msi` untuk instalasi standar Windows.
+- **Versi Portabel (.zip)**: Unduh `fxtube-windows-amd64.zip`, ekstrak ke folder mana saja, lalu klik dua kali `fxtube.exe`. Semua dependensi sudah ada di dalam satu folder.
 
-#### Pengguna Linux
-1. Pasang `yt-dlp` dan `ffmpeg` melalui terminal:
-   * **Arch / Manjaro**: `sudo pacman -S yt-dlp ffmpeg`
-   * **Ubuntu / Debian**: `sudo apt install yt-dlp ffmpeg`
-   * **Fedora**: `sudo dnf install yt-dlp ffmpeg`
-2. Unduh `fxtube-linux-amd64.tar.gz` dari halaman [Releases](https://github.com/risqinf/fxtube/releases).
-3. Ekstrak dan jalankan:
-   ```bash
-   tar -xvf fxtube-linux-amd64.tar.gz
-   chmod +x fxtube-linux-amd64
-   ./fxtube-linux-amd64
-   ```
+#### Pengguna Linux (Ubuntu, Debian, Fedora, Arch Linux)
+- **Ubuntu / Debian / Linux Mint (.deb)**:
+  Cukup unduh file `.deb` lalu pasang dengan:
+  ```bash
+  sudo apt install ./fxtube_*_amd64.deb
+  ```
+  *(Ikon aplikasi otomatis muncul di menu aplikasi/desktop Anda)*
+- **Fedora / openSUSE / RHEL (.rpm)**:
+  ```bash
+  sudo dnf install ./fxtube-*.x86_64.rpm
+  ```
+- **Arch Linux / Manjaro / EndeavourOS (.pkg.tar.zst)**:
+  ```bash
+  sudo pacman -U ./fxtube-*-x86_64.pkg.tar.zst
+  ```
+- **Tarball Portabel (.tar.gz)**:
+  ```bash
+  tar -xvf fxtube-linux-amd64.tar.gz
+  ./fxtube
+  ```
 
 #### Pengguna macOS (Apple Silicon M1/M2/M3/M4)
-1. Pasang `yt-dlp` dan `ffmpeg` via Homebrew:
+1. Unduh berkas `fxtube-darwin-arm64.tar.gz` dari [Releases](https://github.com/risqinf/fxtube/releases).
+2. Ekstrak dan jalankan:
    ```bash
-   brew install yt-dlp ffmpeg
-   ```
-2. Unduh dan ekstrak `fxtube-darwin-arm64.tar.gz` dari [Releases](https://github.com/risqinf/fxtube/releases).
-3. Beri izin eksekusi lalu jalankan:
-   ```bash
-   chmod +x fxtube-darwin-arm64
-   ./fxtube-darwin-arm64
+   tar -xvf fxtube-darwin-arm64.tar.gz
+   ./fxtube
    ```
 
 ---

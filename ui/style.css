@@ -397,6 +397,45 @@ header {
   aspect-ratio: 16/9;
   box-shadow: 0 4px 20px rgba(0,0,0,0.6);
 }
+.play-prompt-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  cursor: pointer;
+  z-index: 10;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+.play-prompt-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, background 0.2s;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4);
+}
+.play-prompt-overlay:hover .play-prompt-circle {
+  transform: scale(1.1);
+  background: #ef4444;
+}
+.play-prompt-circle svg {
+  width: 28px;
+  height: 28px;
+  fill: #fff;
+  margin-left: 3px;
+}
 video#embeddedPlayer {
   width: 100%;
   height: 100%;

@@ -125,6 +125,13 @@
         </div>
 
         <div id="videoGrid" class="video-grid"></div>
+        <div id="loadMoreBox" class="load-more-box" style="display:none;text-align:center;padding:24px 0;">
+          <button id="btnLoadMore" class="btn-card-mpv" style="display:inline-flex;align-items:center;padding:10px 24px;font-size:13px;background:#2563eb;cursor:pointer;" onclick="loadMoreVideos()">
+            <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:currentColor;margin-right:6px;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+            Muat Lebih Banyak Video
+          </button>
+        </div>
+        <div id="infiniteSentinel" style="height:20px;width:100%;"></div>
       </div>
 
       <!-- WATCH VIEW (EMBEDDED) -->
@@ -138,6 +145,12 @@
               <div id="playerLoader" class="player-loader-overlay">
                 <div class="spinner"></div>
                 <p id="playerLoaderText">Menyiapkan stream H.264...</p>
+              </div>
+              <div id="playPromptOverlay" class="play-prompt-overlay" style="display:none;" onclick="userResumePlayback()">
+                <div class="play-prompt-circle">
+                  <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+                <span>Klik untuk Memutar Video</span>
               </div>
             </div>
 
@@ -159,21 +172,8 @@
 
               <!-- CONTROLS -->
               <div class="watch-controls">
-                <!-- QUALITY PICKER -->
-                <div class="quality-picker">
-                  <button id="q360" class="btn-quality" onclick="switchQuality('360')" title="Paling Ringan (10% CPU)">
-                    <svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
-                    360p
-                  </button>
-                  <button id="q480" class="btn-quality active" onclick="switchQuality('480')" title="Seimbang (15% CPU)">
-                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>
-                    480p
-                  </button>
-                  <button id="q720" class="btn-quality" onclick="switchQuality('720')" title="HD (25% CPU)">
-                    <svg viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/></svg>
-                    720p
-                  </button>
-                </div>
+                <!-- DYNAMIC QUALITY PICKER (144p - 1080p) -->
+                <div id="qualityPicker" class="quality-picker"></div>
 
                 <!-- SEEK -10s / +10s -->
                 <button class="ctrl-btn" onclick="seekWeb(-10)" title="Mundur 10 detik">
@@ -350,13 +350,33 @@
       <!-- DEFAULT QUALITY -->
       <div class="form-group">
         <label class="form-label">Kualitas Default (Hemat Baterai & Kuota):</label>
+        <label for="set144" class="radio-option">
+          <input type="radio" id="set144" name="default_quality" value="144">
+          <div class="option-icon">
+            <svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+          </div>
+          <div>
+            <strong>144p (Paling Hemat Kuota)</strong>
+            <div style="font-size:11px;color:#888;">CPU ~5%, konsumsi kuota super minim ~40MB/jam.</div>
+          </div>
+        </label>
+        <label for="set240" class="radio-option">
+          <input type="radio" id="set240" name="default_quality" value="240">
+          <div class="option-icon">
+            <svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+          </div>
+          <div>
+            <strong>240p (Sangat Ringan)</strong>
+            <div style="font-size:11px;color:#888;">CPU ~8%, cepat dan hemat kuota.</div>
+          </div>
+        </label>
         <label for="set360" class="radio-option">
           <input type="radio" id="set360" name="default_quality" value="360">
           <div class="option-icon">
             <svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
           </div>
           <div>
-            <strong>360p (Ultra Ringan & Paling Hemat Kuota)</strong>
+            <strong>360p (Ultra Ringan & Hemat Kuota)</strong>
             <div style="font-size:11px;color:#888;">CPU ~10%, streaming instan, hemat kuota ~100MB/jam.</div>
           </div>
         </label>
@@ -367,7 +387,7 @@
           </div>
           <div>
             <strong>480p (Seimbang - Rekomendasi Layar 1280x800)</strong>
-            <div style="font-size:11px;color:#888;">CPU ~15%, pas di layar 12 inci ThinkPad X201.</div>
+            <div style="font-size:11px;color:#888;">CPU ~15%, pas di layar 12 inci ThinkPad.</div>
           </div>
         </label>
         <label for="set720" class="radio-option">
@@ -376,8 +396,18 @@
             <svg viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/></svg>
           </div>
           <div>
-            <strong>720p (HD H.264)</strong>
-            <div style="font-size:11px;color:#888;">CPU ~25%, gambar paling tajam untuk teks/coding.</div>
+            <strong>720p (HD 720p H.264)</strong>
+            <div style="font-size:11px;color:#888;">CPU ~25%, gambar tajam untuk teks/presentasi.</div>
+          </div>
+        </label>
+        <label for="set1080" class="radio-option">
+          <input type="radio" id="set1080" name="default_quality" value="1080">
+          <div class="option-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/></svg>
+          </div>
+          <div>
+            <strong>1080p (Full HD 1080p)</strong>
+            <div style="font-size:11px;color:#888;">Kualitas maksimal, sangat tajam di layar modern.</div>
           </div>
         </label>
       </div>

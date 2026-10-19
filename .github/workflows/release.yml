@@ -10,28 +10,20 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build Multiplatform Binaries
+  build-linux:
+    name: Build Linux Packages (${{ matrix.arch }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
-          - os: linux
-            arch: amd64
-            ext: ""
-            archive: tar.gz
-          - os: linux
-            arch: arm64
-            ext: ""
-            archive: tar.gz
-          - os: windows
-            arch: amd64
-            ext: ".exe"
-            archive: zip
-          - os: darwin
-            arch: arm64
-            ext: ""
-            archive: tar.gz
+          - arch: amd64
+            rpm_arch: x86_64
+            arch_arch: x86_64
+            ytdlp_url: https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp
+          - arch: arm64
+            rpm_arch: aarch64
+            arch_arch: aarch64
+            ytdlp_url: https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux_aarch64
 
     steps:
       - name: Checkout code
@@ -43,39 +35,177 @@ jobs:
           go-version: '1.24'
           cache: true
 
-      - name: Build Binary
+      - name: Install nfpm
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: Build Binary and Native Packages
         env:
-          GOOS: ${{ matrix.os }}
+          GOOS: linux
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
         run: |
-          OUTPUT_NAME="fxtube-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
-          go build -ldflags="-s -w -extldflags '-static'" -o "$OUTPUT_NAME" .
-          
-          if [ "${{ matrix.archive }}" = "zip" ]; then
-            zip "fxtube-${{ matrix.os }}-${{ matrix.arch }}.zip" "$OUTPUT_NAME" README.md
-          else
-            tar -czvf "fxtube-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" "$OUTPUT_NAME" README.md
-          fi
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ -z "$VERSION" ]; then VERSION="1.3.0"; fi
+          mkdir -p dist
 
-      - name: Upload Artifact
+          # 1. Compile static Go binary
+          go build -ldflags="-s -w -extldflags '-static'" -o dist/fxtube .
+          cp dist/fxtube dist/fxtube-linux-${{ matrix.arch }}
+
+          # 2. Download standalone yt-dlp binary to bundle in tar.gz
+          curl -sL "${{ matrix.ytdlp_url }}" -o dist/yt-dlp || true
+          chmod +x dist/yt-dlp || true
+
+          # 3. Create standalone tar.gz archive with bundled yt-dlp
+          tar -czvf "dist/fxtube-linux-${{ matrix.arch }}.tar.gz" -C dist fxtube yt-dlp -C .. README.md LICENSE
+
+          # 4. Generate native Linux packages via nfpm
+          ARCH="${{ matrix.arch }}" VERSION="$VERSION" nfpm package --packager deb --target "dist/fxtube_${VERSION}_${{ matrix.arch }}.deb"
+          ARCH="${{ matrix.rpm_arch }}" VERSION="$VERSION" nfpm package --packager rpm --target "dist/fxtube-${VERSION}-1.${{ matrix.rpm_arch }}.rpm"
+          ARCH="${{ matrix.arch_arch }}" VERSION="$VERSION" nfpm package --packager archlinux --target "dist/fxtube-${VERSION}-1-${{ matrix.arch_arch }}.pkg.tar.zst"
+
+          ls -lh dist/
+
+      - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fxtube-${{ matrix.os }}-${{ matrix.arch }}
-          path: fxtube-${{ matrix.os }}-${{ matrix.arch }}.${{ matrix.archive }}
+          name: linux-${{ matrix.arch }}
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.pkg.tar.zst
+            dist/*.tar.gz
 
-  release:
-    name: Publish GitHub Release
-    needs: build
+  build-windows:
+    name: Build Windows Installers (amd64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Build Windows Executable & Bundles
+        shell: pwsh
+        run: |
+          $Version = $env:GITHUB_REF_NAME -replace '^v',''
+          if (-not $Version) { $Version = "1.3.0" }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+
+          # 1. Compile Windows static binary
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          $env:CGO_ENABLED = "0"
+          go build -ldflags="-s -w -H=windowsgui" -o "dist\fxtube-windows-amd64.exe" .
+          Copy-Item "dist\fxtube-windows-amd64.exe" -Destination "dist\fxtube.exe"
+
+          # 2. Download official yt-dlp.exe and static ffmpeg.exe
+          Write-Host "Downloading standalone yt-dlp.exe..."
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "dist\yt-dlp.exe"
+
+          Write-Host "Downloading static ffmpeg.exe..."
+          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile "dist\ffmpeg.zip"
+          Expand-Archive -Path "dist\ffmpeg.zip" -DestinationPath "dist\ffmpeg_extracted"
+          $ffmpegExe = Get-ChildItem -Path "dist\ffmpeg_extracted" -Filter "ffmpeg.exe" -Recurse | Select-Object -First 1
+          if ($ffmpegExe) {
+            Copy-Item $ffmpegExe.FullName -Destination "dist\ffmpeg.exe"
+          }
+          Remove-Item -Recurse -Force "dist\ffmpeg.zip", "dist\ffmpeg_extracted" -ErrorAction SilentlyContinue
+
+          # 3. Create bundled standalone ZIP (ready to run with zero dependencies)
+          Compress-Archive -Path "dist\fxtube.exe", "dist\yt-dlp.exe", "dist\ffmpeg.exe", "README.md", "LICENSE" -DestinationPath "dist\fxtube-windows-amd64.zip"
+
+          # 4. Compile Inno Setup installer (.exe)
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) {
+            if (Test-Path "C:\Program Files (x86)\Inno Setup 6\iscc.exe") {
+              $iscc = "C:\Program Files (x86)\Inno Setup 6\iscc.exe"
+            }
+          }
+          if ($iscc) {
+            Write-Host "Building Inno Setup installer with $iscc..."
+            & $iscc packaging\installer.iss
+          }
+
+          # 5. Compile WiX MSI installer (.msi)
+          $candle = (Get-Command candle -ErrorAction SilentlyContinue).Source
+          $light = (Get-Command light -ErrorAction SilentlyContinue).Source
+          if (-not $candle -and (Test-Path "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe")) {
+            $candle = "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe"
+            $light = "C:\Program Files (x86)\WiX Toolset v3.11\bin\light.exe"
+          }
+          if ($candle -and $light) {
+            Write-Host "Building WiX MSI with $candle..."
+            & $candle packaging\fxtube.wxs -out dist\fxtube.wixobj
+            & $light dist\fxtube.wixobj -out dist\fxtube-windows-amd64.msi -sval
+          }
+
+          Get-ChildItem dist\
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: |
+            dist/*.zip
+            dist/*installer.exe
+            dist/*.msi
+
+  build-darwin:
+    name: Build macOS Apple Silicon (arm64)
     runs-on: ubuntu-latest
     steps:
-      - name: Download all built artifacts
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Build Darwin Binary & Bundle
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+          CGO_ENABLED: 0
+        run: |
+          mkdir -p dist
+          go build -ldflags="-s -w" -o dist/fxtube-darwin-arm64 .
+          cp dist/fxtube-darwin-arm64 dist/fxtube
+
+          curl -sL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos" -o dist/yt-dlp || true
+          chmod +x dist/yt-dlp || true
+
+          tar -czvf "dist/fxtube-darwin-arm64.tar.gz" -C dist fxtube yt-dlp -C .. README.md LICENSE
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: darwin-arm64
+          path: dist/fxtube-darwin-arm64.tar.gz
+
+  release:
+    name: Publish All Installers & Packages to GitHub Release
+    needs: [build-linux, build-windows, build-darwin]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: release-assets
           merge-multiple: true
 
-      - name: Create Release
+      - name: Inspect release assets
+        run: ls -lh release-assets/
+
+      - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: release-assets/*

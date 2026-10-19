@@ -3,6 +3,10 @@ dist/
 *.tar.gz
 *.zip
 *.exe
+*.deb
+*.rpm
+*.pkg.tar.zst
+*.msi
 fxtube
 fxtube-test
 

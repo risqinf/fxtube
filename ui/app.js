@@ -2,12 +2,14 @@
 
 let currentTab = 'home';
 let currentCategory = '';
+let currentSearchQuery = '';
 const cache = {};
 let currentBrowseVideos = [];
 let currentQueue = [];
 let currentQueueIndex = -1;
 let currentVideo = null;
 let currentPlaylistSource = null;
+let currentAvailableQualities = ['144', '240', '360', '480', '720', '1080'];
 
 let selectedQuality = localStorage.getItem('fxtube_quality') || '480';
 let autoplayEnabled = localStorage.getItem('fxtube_autoplay') !== 'false';
@@ -21,12 +23,17 @@ let playerMode = savedMode;
 let streamTimeOffset = 0;
 let isTimelineDragging = false;
 
+// Pagination & Infinite Scroll State
+let currentPage = 1;
+let isFetchingMore = false;
+let hasMoreVideos = true;
+
 let mpvPollInterval = null;
 let isMpvActive = false;
 
 const player = document.getElementById('embeddedPlayer');
 
-// SVGs for clean rendering without emoji font bugs
+// Clean SVG Icons for reliable cross-platform rendering
 const ICONS = {
   play: `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`,
   eye: `<svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`,
@@ -83,6 +90,7 @@ function setTabActive(tabName) {
 function switchToBrowse() {
   document.getElementById('watchView').style.display = 'none';
   document.getElementById('browseView').style.display = 'block';
+  hidePlayPrompt();
   if (player) {
     player.pause();
     player.removeAttribute('src');
@@ -104,10 +112,23 @@ function switchToWatchViewDirect() {
   }
 }
 
+function showLoadMore(show) {
+  const box = document.getElementById('loadMoreBox');
+  if (box) box.style.display = show ? 'block' : 'none';
+}
+
+function hideLoadMore() {
+  showLoadMore(false);
+}
+
 // --- TAB LOADING ---
 async function loadTab(tabName, forceRefresh=false) {
   switchToBrowse();
   currentTab = tabName;
+  currentPage = 1;
+  hasMoreVideos = true;
+  hideLoadMore();
+
   if (tabName === 'home' && !forceRefresh) {
     currentCategory = '';
     document.querySelectorAll('.chips-bar .chip').forEach((c, i) => {
@@ -133,7 +154,6 @@ async function loadTab(tabName, forceRefresh=false) {
     return;
   }
 
-  // Jika di mode Tamu (Guest) dan membuka tab akun, arahkan dengan ramah ke Pengaturan
   if (accountMode === 'guest' && ['subscriptions', 'history', 'watchlater', 'liked'].includes(tabName)) {
     document.getElementById('videoGrid').innerHTML = `
       <div style="text-align:center;padding:60px 20px;grid-column:1/-1;">
@@ -154,12 +174,14 @@ async function loadTab(tabName, forceRefresh=false) {
   const cacheKey = tabName + '::' + currentCategory;
   if (!forceRefresh && cache[cacheKey]) {
     renderVideos(cache[cacheKey]);
+    if (cache[cacheKey].length >= 10) showLoadMore(true);
     return;
   }
 
   showLoader(true, `Mengambil ${titles[tabName]}...`);
   try {
-    let url = `/api/feed?tab=${tabName}`;
+    let url = `/api/feed?tab=${tabName}&page=1`;
+    if (forceRefresh) url += '&refresh=1';
     if (tabName === 'home' && currentCategory) {
       url += `&category=${encodeURIComponent(currentCategory)}`;
     }
@@ -168,6 +190,9 @@ async function loadTab(tabName, forceRefresh=false) {
     if (data.error) throw new Error(data.error);
     cache[cacheKey] = data.videos || [];
     renderVideos(cache[cacheKey]);
+    if (cache[cacheKey].length >= 10) {
+      showLoadMore(true);
+    }
   } catch (err) {
     const msg = err.name === 'AbortError' ? 'Koneksi timeout (jaringan atau yt-dlp lambat).' : err.message;
     document.getElementById('videoGrid').innerHTML = `
@@ -182,6 +207,87 @@ async function loadTab(tabName, forceRefresh=false) {
   }
 }
 
+// --- PAGINATION & INFINITE SCROLL ---
+async function loadMoreVideos() {
+  if (isFetchingMore || !hasMoreVideos) return;
+  if (currentTab === 'localhistory') return;
+
+  isFetchingMore = true;
+  const btn = document.getElementById('btnLoadMore');
+  if (btn) btn.innerText = 'Memuat video lebih banyak...';
+
+  const nextPage = currentPage + 1;
+  try {
+    let url = '';
+    if (currentTab === 'search') {
+      url = `/api/search?q=${encodeURIComponent(currentSearchQuery)}&page=${nextPage}`;
+    } else {
+      url = `/api/feed?tab=${currentTab}&page=${nextPage}`;
+      if (currentTab === 'home' && currentCategory) {
+        url += `&category=${encodeURIComponent(currentCategory)}`;
+      }
+    }
+
+    const res = await fetchWithTimeout(url, { timeout: 22000 });
+    const data = await res.json();
+    if (data.videos && data.videos.length > 0) {
+      currentPage = nextPage;
+      appendVideos(data.videos);
+    } else {
+      hasMoreVideos = false;
+      if (btn) btn.innerText = 'Semua video telah ditampilkan';
+    }
+  } catch (err) {
+    console.warn('Gagal memuat halaman berikutnya:', err);
+    if (btn) btn.innerText = 'Coba lagi memuat video';
+  } finally {
+    isFetchingMore = false;
+    if (hasMoreVideos && btn) {
+      btn.innerHTML = `<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:currentColor;margin-right:6px;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> Muat Lebih Banyak Video`;
+    }
+  }
+}
+
+function appendVideos(newVideos) {
+  const grid = document.getElementById('videoGrid');
+  if (!grid || !newVideos || newVideos.length === 0) return;
+
+  const startIndex = currentBrowseVideos.length;
+  currentBrowseVideos = currentBrowseVideos.concat(newVideos);
+
+  newVideos.forEach((v, i) => {
+    const cardIndex = startIndex + i;
+    const card = document.createElement('div');
+    card.className = 'video-card';
+
+    let thumb = 'https://i.ytimg.com/img/no_thumbnail.jpg';
+    if (v.thumbnails && v.thumbnails.length > 0) {
+      thumb = v.thumbnails[v.thumbnails.length - 1].url || thumb;
+    }
+    const durationText = v.duration_string || formatDuration(v.duration);
+
+    card.innerHTML = `
+      <div class="thumb-wrapper" onclick="handleCardClick(${cardIndex})">
+        <img class="thumb-img" src="${thumb}" loading="lazy" decoding="async" alt="thumb">
+        ${durationText ? `<span class="duration-badge">${durationText}</span>` : ''}
+      </div>
+      <div class="card-info" onclick="handleCardClick(${cardIndex})">
+        <div class="card-title" title="${escapeHtml(v.title)}">${escapeHtml(v.title)}</div>
+        <div class="card-channel">${escapeHtml(v.channel || v.uploader || 'YouTube')}</div>
+        <div class="card-footer">
+          <button class="btn-card-web" onclick="event.stopPropagation(); playDirectEmbedded(${cardIndex}, true)" title="Putar di Web Browser (Default)">
+            ${ICONS.eye} Putar Web
+          </button>
+          <button class="btn-card-mpv" onclick="event.stopPropagation(); playDirectMPV(${cardIndex}, true)" title="Putar di MPV Native (~40MB RAM)">
+            ${ICONS.play} MPV
+          </button>
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
 function filterCategory(cat, btn) {
   document.querySelectorAll('.chips-bar .chip').forEach(c => c.classList.remove('active'));
   btn.classList.add('active');
@@ -191,15 +297,20 @@ function filterCategory(cat, btn) {
 
 function refreshCurrentTab() {
   if (currentTab === 'search') {
-    executeSearch();
+    executeSearch(true);
   } else {
     loadTab(currentTab, true);
   }
 }
 
-async function executeSearch() {
+async function executeSearch(forceRefresh=false) {
   const query = document.getElementById('searchInput').value.trim();
   if (!query) return;
+
+  currentSearchQuery = query;
+  currentPage = 1;
+  hasMoreVideos = true;
+  hideLoadMore();
 
   switchToBrowse();
   currentTab = 'search';
@@ -209,16 +320,21 @@ async function executeSearch() {
 
   showLoader(true, `Mencari "${query}"...`);
   try {
-    const res = await fetchWithTimeout(`/api/search?q=${encodeURIComponent(query)}`, { timeout: 22000 });
+    let url = `/api/search?q=${encodeURIComponent(query)}&page=1`;
+    if (forceRefresh) url += '&refresh=1';
+    const res = await fetchWithTimeout(url, { timeout: 22000 });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     renderVideos(data.videos || []);
+    if (data.videos && data.videos.length >= 10) {
+      showLoadMore(true);
+    }
   } catch (err) {
     const msg = err.name === 'AbortError' ? 'Pencarian timeout.' : err.message;
     document.getElementById('videoGrid').innerHTML = `
       <div style="text-align:center;padding:50px 20px;grid-column:1/-1;">
         <p style="color:#ef4444;font-size:15px;margin-bottom:14px;">Pencarian gagal: ${escapeHtml(msg)}</p>
-        <button class="btn-card-mpv" onclick="executeSearch()" style="display:inline-flex;padding:8px 20px;font-size:13px;background:#2563eb;">
+        <button class="btn-card-mpv" onclick="executeSearch(true)" style="display:inline-flex;padding:8px 20px;font-size:13px;background:#2563eb;">
           ${ICONS.play} Coba Lagi
         </button>
       </div>`;
@@ -247,6 +363,7 @@ function renderVideos(videos) {
   grid.innerHTML = '';
   if (!videos || videos.length === 0) {
     grid.innerHTML = '<p style="color:#888;grid-column:1/-1;padding:40px 0;text-align:center;">Tidak ada video ditemukan.</p>';
+    hideLoadMore();
     return;
   }
 
@@ -333,7 +450,7 @@ async function loadMixPlaylistForVideo(v) {
   currentQueue = [v];
   currentQueueIndex = 0;
   const subtitle = document.getElementById('queueSubtitle');
-  if (subtitle) subtitle.innerText = 'Mengambil YouTube Mix...';
+  if (subtitle) subtitle.innerText = 'Mengambil daftar putar / Mix...';
   renderQueueList();
 
   try {
@@ -353,6 +470,12 @@ async function loadMixPlaylistForVideo(v) {
         sub.innerText = (isRealPlaylist ? 'Playlist' : 'YouTube Mix') + ` (${currentQueue.length} video)`;
       }
       renderQueueList();
+
+      // Preload next track immediately
+      if (idx + 1 < currentQueue.length) {
+        const nextV = currentQueue[idx + 1];
+        fetch(`/api/stream/preload?url=${encodeURIComponent(nextV.url)}&quality=${selectedQuality}`);
+      }
     } else {
       const sub = document.getElementById('queueSubtitle');
       if (sub) sub.innerText = '1 video';
@@ -382,6 +505,7 @@ async function playDirectMPV(index, fromBrowse = false) {
   currentVideo = v;
   recordLocalHistory(v);
 
+  hidePlayPrompt();
   if (player) {
     player.pause();
     player.removeAttribute('src');
@@ -503,7 +627,41 @@ async function stopMPV() {
   showToast('Pemutaran MPV dihentikan');
 }
 
-// --- EMBEDDED WEB PLAYER ---
+// --- DYNAMIC QUALITY PICKER (144p - 1080p) ---
+function renderQualityButtons(qualities) {
+  const container = document.getElementById('qualityPicker');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const list = (qualities && qualities.length > 0) ? qualities : ['144', '240', '360', '480', '720', '1080'];
+  currentAvailableQualities = list;
+
+  // If selected quality is not in available qualities, select closest lower or available
+  if (!list.includes(selectedQuality)) {
+    const selNum = parseInt(selectedQuality, 10);
+    const valid = list.map(q => parseInt(q, 10)).filter(q => q <= selNum);
+    if (valid.length > 0) {
+      selectedQuality = String(Math.max(...valid));
+    } else {
+      selectedQuality = list[0];
+    }
+  }
+
+  list.forEach(q => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-quality' + (selectedQuality === q ? ' active' : '');
+    btn.title = `${q}p H.264 (Maksimal 1080p)`;
+    btn.innerHTML = `${ICONS.play} ${q}p`;
+    btn.onclick = () => switchQuality(q);
+    container.appendChild(btn);
+  });
+
+  const badge = document.getElementById('watchQualityBadge');
+  if (badge) badge.innerText = `${selectedQuality}p H.264 • Low CPU`;
+  const opt = document.getElementById('specOptText');
+  if (opt) opt.innerText = `${selectedQuality}p H.264`;
+}
+
 // --- EMBEDDED WEB PLAYER ---
 function playDirectEmbedded(index, fromBrowse = false) {
   let v = null;
@@ -522,16 +680,44 @@ function playDirectEmbedded(index, fromBrowse = false) {
   playEmbeddedVideo(v);
 }
 
+function showPlayPrompt() {
+  const el = document.getElementById('playPromptOverlay');
+  if (el) el.style.display = 'flex';
+}
+
+function hidePlayPrompt() {
+  const el = document.getElementById('playPromptOverlay');
+  if (el) el.style.display = 'none';
+}
+
+function userResumePlayback() {
+  hidePlayPrompt();
+  if (player) {
+    player.play().catch(e => console.warn('User resume play:', e));
+  }
+}
+
 async function playEmbeddedVideo(v) {
   currentVideo = v;
   streamTimeOffset = 0;
   switchToWatch();
   recordLocalHistory(v);
   hideMpvBar();
+  hidePlayPrompt();
 
   document.getElementById('watchTitle').innerText = v.title;
   document.getElementById('watchChannel').innerText = v.channel || v.uploader || 'YouTube';
-  updateQualityButtonsUI();
+
+  // 1. Detect and render available resolutions (up to 1080p)
+  renderQualityButtons(currentAvailableQualities);
+  fetch(`/api/video/info?url=${encodeURIComponent(v.url)}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data && data.qualities && data.qualities.length > 0) {
+        renderQualityButtons(data.qualities);
+      }
+    })
+    .catch(() => {});
 
   const totalSec = v.duration || 0;
   const curEl = document.getElementById('webTimeCurrent');
@@ -557,7 +743,14 @@ async function playEmbeddedVideo(v) {
     }
   };
 
-  const timer = setTimeout(hideOverlay, 7000);
+  const timer = setTimeout(hideOverlay, 8000);
+
+  // Cleanly reset previous player state to prevent browser abort error cascades
+  try {
+    player.pause();
+    player.removeAttribute('src');
+    player.load();
+  } catch (e) {}
 
   player.onloadedmetadata = () => {
     clearTimeout(timer);
@@ -572,8 +765,9 @@ async function playEmbeddedVideo(v) {
     hideOverlay();
     if (!player.src || player.src === '' || player.src.endsWith('/')) return;
     const code = player.error ? player.error.code : 0;
-    console.error('Player error code:', code);
-    showToast('Kendala memutar stream di Web. Anda dapat klik "Ke MPV" bila perlu.', '#ef4444');
+    if (code === 4 || code === 2) {
+      showToast('Kendala memutar stream di Web. Anda dapat klik "Ke MPV" bila perlu.', '#ef4444');
+    }
   };
 
   player.ontimeupdate = () => {
@@ -590,13 +784,23 @@ async function playEmbeddedVideo(v) {
     }
   };
 
+  // Pre-resolve next video in background to eliminate next-video wait times
+  if (currentQueue && currentQueueIndex + 1 < currentQueue.length) {
+    const nextV = currentQueue[currentQueueIndex + 1];
+    fetch(`/api/stream/preload?url=${encodeURIComponent(nextV.url)}&quality=${selectedQuality}`);
+  }
+
   try {
     const streamUrl = `/api/stream?url=${encodeURIComponent(v.url)}&quality=${selectedQuality}&_t=${Date.now()}`;
     player.src = streamUrl;
     player.load();
-    player.play().catch(e => {
-      console.log('Autoplay waiting for interaction:', e);
-    });
+    const playPromise = player.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(e => {
+        console.log('Autoplay deferred or blocked by browser policy:', e);
+        showPlayPrompt();
+      });
+    }
   } catch (err) {
     clearTimeout(timer);
     hideOverlay();
@@ -667,7 +871,7 @@ function switchQuality(q) {
   if (selectedQuality === q) return;
   selectedQuality = q;
   localStorage.setItem('fxtube_quality', q);
-  updateQualityButtonsUI();
+  renderQualityButtons(currentAvailableQualities);
   if (!currentVideo) return;
 
   if (isMpvActive) {
@@ -721,22 +925,7 @@ function switchQuality(q) {
 }
 
 function updateQualityButtonsUI() {
-  const q360 = document.getElementById('q360');
-  const q480 = document.getElementById('q480');
-  const q720 = document.getElementById('q720');
-  if (q360) q360.classList.toggle('active', selectedQuality === '360');
-  if (q480) q480.classList.toggle('active', selectedQuality === '480');
-  if (q720) q720.classList.toggle('active', selectedQuality === '720');
-
-  const labels = {
-    '360': '360p • Ultra Ringan (~10% CPU)',
-    '480': '480p • Seimbang (~15% CPU)',
-    '720': '720p • HD H.264 (~25% CPU)',
-  };
-  const badge = document.getElementById('watchQualityBadge');
-  if (badge) badge.innerText = labels[selectedQuality] || `${selectedQuality}p`;
-  const opt = document.getElementById('specOptText');
-  if (opt) opt.innerText = `${selectedQuality}p H.264`;
+  renderQualityButtons(currentAvailableQualities);
 
   const modeLabels = {
     'firefox': 'Firefox Sync',
@@ -842,6 +1031,7 @@ function renderQueueList() {
 async function popOutToMPV() {
   if (!currentVideo) return;
   const idx = currentQueueIndex >= 0 ? currentQueueIndex : 0;
+  hidePlayPrompt();
   if (player) {
     player.pause();
     player.removeAttribute('src');
@@ -873,14 +1063,11 @@ function openSettingsModal() {
     else pMpv.checked = true;
   }
 
-  const s360 = document.getElementById('set360');
-  const s480 = document.getElementById('set480');
-  const s720 = document.getElementById('set720');
-  if (s360 && s480 && s720) {
-    if (selectedQuality === '360') s360.checked = true;
-    else if (selectedQuality === '720') s720.checked = true;
-    else s480.checked = true;
-  }
+  const qualityRadios = ['144', '240', '360', '480', '720', '1080'];
+  qualityRadios.forEach(q => {
+    const el = document.getElementById('set' + q);
+    if (el) el.checked = (selectedQuality === q);
+  });
 
   const aGuest = document.getElementById('accGuest');
   const aCustom = document.getElementById('accCustom');
@@ -919,7 +1106,7 @@ function updateSidebarBadges() {
 }
 
 function saveSettings() {
-  const pMode = document.querySelector('input[name="play_mode"]:checked')?.value || playerMode || 'mpv';
+  const pMode = document.querySelector('input[name="play_mode"]:checked')?.value || playerMode || 'web';
   const q = document.querySelector('input[name="default_quality"]:checked')?.value || selectedQuality || '480';
   const acc = document.querySelector('input[name="acc_mode"]:checked')?.value || accountMode || 'firefox';
   const auto = document.getElementById('setAutoplay')?.checked ?? autoplayEnabled;
@@ -934,16 +1121,14 @@ function saveSettings() {
   localStorage.setItem('fxtube_autoplay', auto);
   localStorage.setItem('fxtube_account_mode', acc);
 
-  // TUTUP MODAL SEGERA AGAR TIDAK MENGGANTUNG
   closeSettingsModal();
   showToast(`Pengaturan disimpan: Mode ${pMode.toUpperCase()}`);
 
   const chkAuto = document.getElementById('chkAutoplay');
   if (chkAuto) chkAuto.checked = auto;
-  updateQualityButtonsUI();
+  renderQualityButtons(currentAvailableQualities);
   updateSidebarBadges();
 
-  // Sinkronisasi backend di latar belakang tanpa memblokir penutupan modal
   fetchWithTimeout('/api/account-mode', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -954,13 +1139,24 @@ function saveSettings() {
   refreshCurrentTab();
 }
 
+function setupInfiniteScroll() {
+  const sentinel = document.getElementById('infiniteSentinel');
+  if (!sentinel) return;
+  const observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && !isFetchingMore && hasMoreVideos && document.getElementById('browseView')?.style.display !== 'none') {
+      loadMoreVideos();
+    }
+  }, { rootMargin: '300px' });
+  observer.observe(sentinel);
+}
+
 window.onload = async () => {
   const chkAuto = document.getElementById('chkAutoplay');
   if (chkAuto) chkAuto.checked = autoplayEnabled;
-  updateQualityButtonsUI();
+  renderQualityButtons(currentAvailableQualities);
   updateSidebarBadges();
+  setupInfiniteScroll();
 
-  // Tutup modal ketika klik area gelap di luar modal card
   const modal = document.getElementById('settingsModal');
   if (modal) {
     modal.addEventListener('click', (e) => {
@@ -968,7 +1164,7 @@ window.onload = async () => {
     });
   }
 
-  // Pintasan Keyboard Responsif untuk ThinkPad X201
+  // Keyboard Shortcuts
   document.addEventListener('keydown', (e) => {
     const isInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
     if (isInput) {

@@ -75,7 +75,7 @@ func (a *App) handleStream(w http.ResponseWriter, r *http.Request) {
 		"pipe:1",
 	)
 
-	cmd := exec.CommandContext(ctx, "ffmpeg", ffmpegArgs...)
+	cmd := exec.CommandContext(ctx, getFfmpegPath(), ffmpegArgs...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

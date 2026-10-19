@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="FX Tube" Language="1033" Version="1.3.0" Manufacturer="Risqi Nur Fadilah" UpgradeCode="8D96068F-705E-4B02-B7F6-5D62DE95E6E8">
+    <Package InstallerVersion="200" Compressed="yes" InstallScope="perUser" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="INSTALLFOLDER" Name="FX Tube">
+          <Component Id="MainExecutable" Guid="3E452B34-E142-45DA-9626-621B53046777">
+            <File Id="fxtube.exe" Source="dist\fxtube-windows-amd64.exe" KeyPath="yes">
+              <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="FX Tube" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
+              <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="FX Tube" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
+            </File>
+            <File Id="ytdlp.exe" Source="dist\yt-dlp.exe" />
+            <File Id="ffmpeg.exe" Source="dist\ffmpeg.exe" />
+            <File Id="readme.md" Source="README.md" />
+            <File Id="license.txt" Source="LICENSE" />
+            <RemoveFolder Id="INSTALLFOLDER" On="uninstall" />
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="DesktopFolder" Name="Desktop" />
+      <Directory Id="ProgramMenuFolder" Name="Programs" />
+    </Directory>
+
+    <Feature Id="Complete" Level="1">
+      <ComponentRef Id="MainExecutable" />
+    </Feature>
+  </Product>
+</Wix>

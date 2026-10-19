@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -29,7 +30,9 @@ func (a *App) setupRoutes() http.Handler {
 	mux.HandleFunc("/api/feed", a.handleFeed)
 	mux.HandleFunc("/api/search", a.handleSearch)
 	mux.HandleFunc("/api/playlist", a.handlePlaylist)
+	mux.HandleFunc("/api/video/info", a.handleVideoInfo)
 	mux.HandleFunc("/api/stream", a.handleStream)
+	mux.HandleFunc("/api/stream/preload", a.handleStreamPreload)
 	mux.HandleFunc("/api/account-mode", a.handleAccountMode)
 	mux.HandleFunc("/api/play", a.handlePlay)
 	mux.HandleFunc("/api/stop", a.handleStop)
@@ -43,18 +46,27 @@ func (a *App) setupRoutes() http.Handler {
 func (a *App) handleFeed(w http.ResponseWriter, r *http.Request) {
 	tab := r.URL.Query().Get("tab")
 	category := strings.TrimSpace(r.URL.Query().Get("category"))
+	isRefresh := r.URL.Query().Get("refresh") == "1" || r.URL.Query().Get("refresh") == "true"
+
+	pageStr := r.URL.Query().Get("page")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	pageSize := 24
+	startItem := (page - 1) * pageSize + 1
 	var target string
-	limit := 24
 
 	switch tab {
 	case "home":
 		if category != "" {
-			target = fmt.Sprintf("ytsearch24:%s", category)
+			target = fmt.Sprintf("ytsearch%d:%s", startItem+pageSize-1, category)
 		} else {
 			if a.accountMode == "firefox" && a.firefoxProfile != "" {
 				target = "https://www.youtube.com/"
 			} else {
-				target = "ytsearch24:trending indonesia"
+				target = "https://www.youtube.com/feed/trending"
 			}
 		}
 	case "subscriptions":
@@ -66,39 +78,84 @@ func (a *App) handleFeed(w http.ResponseWriter, r *http.Request) {
 	case "liked":
 		target = "https://www.youtube.com/playlist?list=LL"
 	default:
-		target = "ytsearch24:trending indonesia"
+		target = "https://www.youtube.com/feed/trending"
 	}
 
-	videos, err := a.runYtDlp(target, limit)
-	// Fallback: jika Home feed via youtube.com kosong/gagal, fallback otomatis ke trending indonesia
-	if (err != nil || len(videos) == 0) && tab == "home" && target == "https://www.youtube.com/" {
-		log.Printf("[FX Tube] Home feed dari youtube.com nihil/gagal (%v), beralih ke trending indonesia...\n", err)
-		videos, err = a.runYtDlp("ytsearch24:trending indonesia", limit)
+	videos, err := a.runYtDlp(target, pageSize, startItem, isRefresh)
+	// Fallback jika feed utama kosong pada halaman 1
+	if (err != nil || len(videos) == 0) && tab == "home" && page == 1 && target != "ytsearch24:trending indonesia" {
+		log.Printf("[FX Tube] Home feed dari %s nihil/gagal (%v), beralih ke trending indonesia...\n", target, err)
+		target = "ytsearch24:trending indonesia"
+		videos, err = a.runYtDlp(target, pageSize, startItem, isRefresh)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error(), "videos": []VideoItem{}})
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error(), "videos": []VideoItem{}, "page": page})
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{"videos": videos})
+	json.NewEncoder(w).Encode(map[string]interface{}{"videos": videos, "page": page})
 }
 
 func (a *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	isRefresh := r.URL.Query().Get("refresh") == "1" || r.URL.Query().Get("refresh") == "true"
+	pageStr := r.URL.Query().Get("page")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	pageSize := 20
+	startItem := (page - 1) * pageSize + 1
+
 	w.Header().Set("Content-Type", "application/json")
 	if query == "" {
-		json.NewEncoder(w).Encode(map[string]interface{}{"videos": []VideoItem{}})
+		json.NewEncoder(w).Encode(map[string]interface{}{"videos": []VideoItem{}, "page": page})
 		return
 	}
 
-	target := fmt.Sprintf("ytsearch20:%s", query)
-	videos, err := a.runYtDlp(target, 20)
+	target := fmt.Sprintf("ytsearch%d:%s", startItem+pageSize-1, query)
+	videos, err := a.runYtDlp(target, pageSize, startItem, isRefresh)
 	if err != nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error(), "videos": []VideoItem{}})
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error(), "videos": []VideoItem{}, "page": page})
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{"videos": videos})
+	json.NewEncoder(w).Encode(map[string]interface{}{"videos": videos, "page": page})
+}
+
+func (a *App) handleVideoInfo(w http.ResponseWriter, r *http.Request) {
+	targetURL := strings.TrimSpace(r.URL.Query().Get("url"))
+	w.Header().Set("Content-Type", "application/json")
+	if targetURL == "" {
+		json.NewEncoder(w).Encode(map[string]interface{}{"qualities": []string{"360", "480", "720"}})
+		return
+	}
+
+	qualities, err := a.getVideoAvailableQualities(targetURL)
+	if err != nil || len(qualities) == 0 {
+		qualities = []string{"360", "480", "720"}
+	}
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"url":       targetURL,
+		"qualities": qualities,
+	})
+}
+
+func (a *App) handleStreamPreload(w http.ResponseWriter, r *http.Request) {
+	targetURL := strings.TrimSpace(r.URL.Query().Get("url"))
+	quality := strings.TrimSpace(r.URL.Query().Get("quality"))
+	if quality == "" {
+		quality = "480"
+	}
+	if targetURL != "" {
+		go func() {
+			_, _ = a.resolveStreamURLs(targetURL, quality)
+			_, _ = a.getVideoAvailableQualities(targetURL)
+		}()
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func (a *App) handleAccountMode(w http.ResponseWriter, r *http.Request) {
@@ -197,7 +254,7 @@ func (a *App) handlePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	videos, err := a.runYtDlp(target, 25)
+	videos, err := a.runYtDlp(target, 40, 1, false)
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error(), "videos": []VideoItem{}})
 		return

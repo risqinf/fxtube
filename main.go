@@ -50,6 +50,7 @@ func main() {
 		mpvSockPath:    mpvSock,
 		streamCache:    make(map[string]StreamCacheItem),
 		feedCache:      make(map[string]FeedCacheItem),
+		qualitiesCache: make(map[string][]string),
 		ytdlpSemaphore: make(chan struct{}, 2), // Cap concurrent yt-dlp workers to 2 for CPU stability
 	}
 
@@ -77,10 +78,11 @@ func main() {
 		os.Exit(0)
 	}()
 
-	// Launch GUI window
+	// Launch GUI window and verify yt-dlp binary presence
 	go func() {
 		time.Sleep(250 * time.Millisecond)
 		launchGUI(port)
+		ensureYtDlp()
 	}()
 
 	if err := http.Serve(listener, handler); err != nil && err != http.ErrServerClosed {

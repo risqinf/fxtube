@@ -7,21 +7,28 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
 
-// runYtDlp executes yt-dlp to fetch video metadata with smart TTL caching and concurrency throttling
-func (a *App) runYtDlp(target string, maxItems int) ([]VideoItem, error) {
-	cacheKey := fmt.Sprintf("%s::%s::%d", a.accountMode, target, maxItems)
-
-	// Check feed cache first for instant sub-millisecond response
-	a.feedMu.RLock()
-	if cached, ok := a.feedCache[cacheKey]; ok && time.Now().Before(cached.ExpiresAt) {
-		a.feedMu.RUnlock()
-		return cached.Videos, nil
+// runYtDlp executes yt-dlp to fetch video metadata with smart TTL caching, pagination, and concurrency throttling
+func (a *App) runYtDlp(target string, maxItems int, startItem int, forceRefresh bool) ([]VideoItem, error) {
+	if startItem <= 0 {
+		startItem = 1
 	}
-	a.feedMu.RUnlock()
+	cacheKey := fmt.Sprintf("%s::%s::%d::%d", a.accountMode, target, startItem, maxItems)
+
+	// Check feed cache first unless explicitly requested to bypass
+	if !forceRefresh {
+		a.feedMu.RLock()
+		if cached, ok := a.feedCache[cacheKey]; ok && time.Now().Before(cached.ExpiresAt) {
+			a.feedMu.RUnlock()
+			return cached.Videos, nil
+		}
+		a.feedMu.RUnlock()
+	}
 
 	// Throttle concurrency to protect legacy dual-core CPU from load spikes
 	a.ytdlpSemaphore <- struct{}{}
@@ -37,13 +44,17 @@ func (a *App) runYtDlp(target string, maxItems int) ([]VideoItem, error) {
 	cookieArgs := a.getCookieArgs()
 	args = append(args, cookieArgs...)
 
+	if startItem > 1 {
+		args = append(args, "--playlist-start", fmt.Sprintf("%d", startItem))
+	}
 	if maxItems > 0 {
-		args = append(args, "--playlist-end", fmt.Sprintf("%d", maxItems))
+		endItem := startItem + maxItems - 1
+		args = append(args, "--playlist-end", fmt.Sprintf("%d", endItem))
 	}
 
 	args = append(args, target)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 18*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, getYtDlpPath(), args...)
@@ -78,7 +89,6 @@ func (a *App) runYtDlp(target string, maxItems int) ([]VideoItem, error) {
 
 	_ = cmd.Wait()
 
-	// If we got items (even if context timed out or process exited with non-zero), return them
 	if len(items) > 0 {
 		a.feedMu.Lock()
 		a.feedCache[cacheKey] = FeedCacheItem{
@@ -97,6 +107,71 @@ func (a *App) runYtDlp(target string, maxItems int) ([]VideoItem, error) {
 	return items, nil
 }
 
+// getVideoAvailableQualities returns available video heights capped at 1080p
+func (a *App) getVideoAvailableQualities(targetURL string) ([]string, error) {
+	a.qualitiesMu.RLock()
+	if q, ok := a.qualitiesCache[targetURL]; ok && len(q) > 0 {
+		a.qualitiesMu.RUnlock()
+		return q, nil
+	}
+	a.qualitiesMu.RUnlock()
+
+	a.ytdlpSemaphore <- struct{}{}
+	defer func() { <-a.ytdlpSemaphore }()
+
+	args := []string{
+		"--print", "%(formats.:.height)s",
+		"--socket-timeout", "10",
+		"--no-warnings",
+	}
+	cookieArgs := a.getCookieArgs()
+	args = append(args, cookieArgs...)
+	args = append(args, targetURL)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, getYtDlpPath(), args...)
+	out, err := cmd.Output()
+	if err != nil {
+		// Default fallback qualities if query fails
+		return []string{"360", "480", "720"}, nil
+	}
+
+	// Parse heights array like [144, 240, 360, 480, 720, 1080, 1440, 2160]
+	re := regexp.MustCompile(`\d+`)
+	matches := re.FindAllString(string(out), -1)
+	heightSet := make(map[int]bool)
+	maxFound := 0
+	for _, m := range matches {
+		if val, err := strconv.Atoi(m); err == nil && val > 0 {
+			heightSet[val] = true
+			if val > maxFound {
+				maxFound = val
+			}
+		}
+	}
+
+	allStandard := []string{"144", "240", "360", "480", "720", "1080"}
+	var available []string
+	for _, qStr := range allStandard {
+		hVal, _ := strconv.Atoi(qStr)
+		if heightSet[hVal] || (maxFound >= hVal) {
+			available = append(available, qStr)
+		}
+	}
+
+	if len(available) == 0 {
+		available = []string{"360", "480", "720"}
+	}
+
+	a.qualitiesMu.Lock()
+	a.qualitiesCache[targetURL] = available
+	a.qualitiesMu.Unlock()
+
+	return available, nil
+}
+
 // resolveStreamURLs retrieves the direct Google CDN video and audio stream URLs
 func (a *App) resolveStreamURLs(targetURL, quality string) (StreamCacheItem, error) {
 	cacheKey := targetURL + "::" + quality
@@ -111,38 +186,63 @@ func (a *App) resolveStreamURLs(targetURL, quality string) (StreamCacheItem, err
 	a.ytdlpSemaphore <- struct{}{}
 	defer func() { <-a.ytdlpSemaphore }()
 
-	var format string
-	switch quality {
-	case "360":
-		format = "bestvideo[height<=?360][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=?360]+bestaudio/18/best[height<=?360]"
-	case "480":
-		format = "bestvideo[height<=?480][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=?480]+bestaudio/best[height<=?480]"
-	case "720":
-		format = "bestvideo[height<=?720][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=?720]+bestaudio/best[height<=?720]"
-	default:
-		format = "bestvideo[height<=?480][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=?480]+bestaudio/best[height<=?480]"
+	// Double check cache after semaphore acquisition
+	a.streamMu.RLock()
+	if item, found := a.streamCache[cacheKey]; found && time.Now().Before(item.ExpiresAt) {
+		a.streamMu.RUnlock()
+		return item, nil
 	}
+	a.streamMu.RUnlock()
+
+	maxHeight := "480"
+	switch quality {
+	case "144", "240", "360", "480", "720", "1080":
+		maxHeight = quality
+	}
+
+	// High compatibility format string with reliable fallbacks
+	format := fmt.Sprintf(
+		"bestvideo[height<=?%s][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=?%s]+bestaudio/best[height<=?%s]/best",
+		maxHeight, maxHeight, maxHeight,
+	)
 
 	args := []string{
 		"-g",
 		"-f", format,
-		"--socket-timeout", "10",
+		"--socket-timeout", "12",
 		"--no-warnings",
 	}
 	cookieArgs := a.getCookieArgs()
 	args = append(args, cookieArgs...)
 	args = append(args, targetURL)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 16*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, getYtDlpPath(), args...)
 	out, err := cmd.Output()
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return StreamCacheItem{}, fmt.Errorf("resolusi stream URL timeout")
+
+	// If primary format string fails, try ultra-permissive fallback
+	if err != nil || len(out) == 0 {
+		fallbackArgs := []string{
+			"-g",
+			"-f", fmt.Sprintf("b[height<=?%s]/bv*[height<=?%s]+ba/b", maxHeight, maxHeight),
+			"--socket-timeout", "12",
+			"--no-warnings",
 		}
-		return StreamCacheItem{}, err
+		fallbackArgs = append(fallbackArgs, cookieArgs...)
+		fallbackArgs = append(fallbackArgs, targetURL)
+
+		ctxFallback, cancelFallback := context.WithTimeout(context.Background(), 12*time.Second)
+		defer cancelFallback()
+		fallbackCmd := exec.CommandContext(ctxFallback, getYtDlpPath(), fallbackArgs...)
+		out, err = fallbackCmd.Output()
+		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded || ctxFallback.Err() == context.DeadlineExceeded {
+				return StreamCacheItem{}, fmt.Errorf("resolusi stream URL timeout")
+			}
+			return StreamCacheItem{}, err
+		}
 	}
 
 	rawLines := strings.Split(strings.TrimSpace(string(out)), "\n")
