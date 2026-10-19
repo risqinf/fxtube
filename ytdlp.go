@@ -215,8 +215,8 @@ func (a *App) resolveStreamURLs(targetURL, quality string) (StreamCacheItem, err
 
 	// High compatibility format string with reliable fallbacks
 	format := fmt.Sprintf(
-		"bestvideo[height<=?%s][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=?%s]+bestaudio/best[height<=?%s]/best",
-		maxHeight, maxHeight, maxHeight,
+		"bestvideo[height<=?%s][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=?%s][vcodec^=avc1]+bestaudio/best[height<=?%s][vcodec^=avc1]/best[height<=?%s][ext=mp4]/bestvideo[height<=?%s]+bestaudio/best",
+		maxHeight, maxHeight, maxHeight, maxHeight, maxHeight,
 	)
 
 	args := []string{

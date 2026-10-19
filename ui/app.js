@@ -187,7 +187,19 @@ function setTabActive(tabName) {
   }
 }
 
+function stopAllShortsPlayers() {
+  const shortsContainer = document.getElementById('shortsContainer');
+  if (shortsContainer) {
+    const iframes = shortsContainer.querySelectorAll('.short-video-frame');
+    iframes.forEach(f => { f.src = ''; });
+  }
+}
+
 function switchToBrowse() {
+  const shortsView = document.getElementById('shortsView');
+  if (shortsView) shortsView.style.display = 'none';
+  stopAllShortsPlayers();
+
   document.getElementById('watchView').style.display = 'none';
   document.getElementById('browseView').style.display = 'block';
   hidePlayPrompt();
@@ -199,9 +211,341 @@ function switchToBrowse() {
 }
 
 function switchToWatch() {
+  const shortsView = document.getElementById('shortsView');
+  if (shortsView) shortsView.style.display = 'none';
+  stopAllShortsPlayers();
+
   document.getElementById('browseView').style.display = 'none';
   document.getElementById('watchView').style.display = 'block';
 }
+
+function switchToShortsView() {
+  document.getElementById('browseView').style.display = 'none';
+  document.getElementById('watchView').style.display = 'none';
+  hidePlayPrompt();
+  if (player) {
+    try { player.pause(); player.removeAttribute('src'); player.load(); } catch (e) {}
+  }
+  const shortsView = document.getElementById('shortsView');
+  if (shortsView) shortsView.style.display = 'block';
+}
+
+let shortsReelList = [];
+let shortsPage = 1;
+let isFetchingShorts = false;
+let shortsObserver = null;
+
+async function loadShortsReel(forceRefresh = false) {
+  switchToShortsView();
+  setTabActive('shorts');
+  currentTab = 'shorts';
+
+  const container = document.getElementById('shortsContainer');
+  if (!container) return;
+
+  if (!forceRefresh && shortsReelList.length > 0) {
+    activateShortSlide(0);
+    return;
+  }
+
+  container.innerHTML = `
+    <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#888;">
+      <div class="spinner"></div>
+      <p style="margin-top:14px;font-size:14px;color:#aaa;">Menyiapkan Feed Shorts...</p>
+    </div>`;
+
+  shortsPage = 1;
+  try {
+    let videos = [];
+    if (isStandaloneMode) {
+      videos = await fetchInnerTubeVideos('#shorts trending indonesia', true);
+    } else {
+      const res = await fetchWithTimeout('/api/feed?tab=shorts&page=1', { timeout: 18000 });
+      const data = await res.json();
+      videos = data.videos || [];
+      if (videos.length === 0) {
+        videos = await fetchInnerTubeVideos('#shorts trending indonesia', true);
+      }
+    }
+    shortsReelList = videos;
+    renderShortsReel(videos);
+  } catch (err) {
+    console.warn('Gagal memuat shorts reel via primary:', err);
+    try {
+      const fallback = await fetchInnerTubeVideos('#shorts indonesia viral', true);
+      shortsReelList = fallback;
+      renderShortsReel(fallback);
+    } catch (e2) {
+      container.innerHTML = `
+        <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#ef4444;padding:20px;text-align:center;">
+          <p style="font-size:15px;margin-bottom:12px;">Gagal memuat Shorts: ${escapeHtml(err.message)}</p>
+          <button class="header-btn" onclick="loadShortsReel(true)" style="padding:8px 20px;background:#dc2626;color:#fff;">Coba Lagi</button>
+        </div>`;
+    }
+  }
+}
+
+function renderShortsReel(videos) {
+  const container = document.getElementById('shortsContainer');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!videos || videos.length === 0) {
+    container.innerHTML = `
+      <div style="height:100%;display:flex;align-items:center;justify-content:center;color:#888;">
+        Tidak ada Shorts ditemukan.
+      </div>`;
+    return;
+  }
+
+  videos.forEach((v, index) => {
+    const slide = document.createElement('div');
+    slide.className = 'short-slide';
+    slide.id = `shortSlide_${index}`;
+    slide.dataset.index = index;
+    slide.dataset.id = v.id;
+
+    slide.innerHTML = `
+      <div class="short-card">
+        <iframe class="short-video-frame" 
+                id="shortFrame_${index}" 
+                src="" 
+                data-src="https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&loop=1&playlist=${v.id}&playsinline=1&controls=0&modestbranding=1&rel=0&enablejsapi=1" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                allowfullscreen>
+        </iframe>
+
+        <!-- Gradient Overlay Bottom -->
+        <div class="short-overlay-bottom">
+          <div class="short-channel-row">
+            <img class="short-avatar" src="${v.thumbnail || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`}" alt="avatar" loading="lazy">
+            <span class="short-channel-name">@${escapeHtml(v.uploader || 'Creator')}</span>
+            <button class="short-sub-btn" onclick="toggleShortSub(this)">Subscribe</button>
+          </div>
+          <div class="short-caption">${escapeHtml(v.title)}</div>
+          <div class="short-sound-track">
+            <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            <span class="short-sound-name">${escapeHtml(v.title)} • Audio Asli</span>
+          </div>
+        </div>
+
+        <!-- Action buttons right side (TikTok style) -->
+        <div class="short-action-rail">
+          <button class="short-action-btn" onclick="toggleShortLike(this)" title="Suka">
+            <div class="short-action-icon">
+              <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            </div>
+            <span class="short-action-text">Suka</span>
+          </button>
+
+          <button class="short-action-btn" onclick="shareShort('${v.id}')" title="Bagikan">
+            <div class="short-action-icon">
+              <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
+            </div>
+            <span class="short-action-text">Bagikan</span>
+          </button>
+
+          <button class="short-action-btn" onclick="openShortInWatch('${v.id}')" title="Buka Detail">
+            <div class="short-action-icon">
+              <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+            </div>
+            <span class="short-action-text">Detail</span>
+          </button>
+
+          <button class="short-action-btn short-nav-btn desktop-only" onclick="scrollShortNav(-1)" title="Video Sebelumnya">
+            <div class="short-action-icon">
+              <svg viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
+            </div>
+          </button>
+
+          <button class="short-action-btn short-nav-btn desktop-only" onclick="scrollShortNav(1)" title="Video Selanjutnya">
+            <div class="short-action-icon">
+              <svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+            </div>
+          </button>
+        </div>
+      </div>
+    `;
+    container.appendChild(slide);
+  });
+
+  setupShortsObserver();
+  activateShortSlide(0);
+}
+
+function setupShortsObserver() {
+  if (shortsObserver) shortsObserver.disconnect();
+  const container = document.getElementById('shortsContainer');
+  if (!container) return;
+
+  shortsObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const slide = entry.target;
+      const idx = parseInt(slide.dataset.index, 10);
+      const iframe = slide.querySelector('.short-video-frame');
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+        if (iframe && iframe.src !== iframe.dataset.src) {
+          iframe.src = iframe.dataset.src;
+        }
+        if (idx >= shortsReelList.length - 3 && !isFetchingShorts) {
+          loadMoreShorts();
+        }
+      } else {
+        if (iframe && iframe.src) {
+          iframe.src = '';
+        }
+      }
+    });
+  }, {
+    root: container,
+    threshold: 0.6
+  });
+
+  document.querySelectorAll('.short-slide').forEach(el => shortsObserver.observe(el));
+}
+
+function activateShortSlide(index) {
+  const slide = document.getElementById(`shortSlide_${index}`);
+  if (!slide) return;
+  const iframe = slide.querySelector('.short-video-frame');
+  if (iframe && iframe.src !== iframe.dataset.src) {
+    iframe.src = iframe.dataset.src;
+  }
+}
+
+async function loadMoreShorts() {
+  if (isFetchingShorts) return;
+  isFetchingShorts = true;
+  shortsPage += 1;
+  try {
+    const q = `#shorts trending indonesia part ${shortsPage}`;
+    const more = await fetchInnerTubeVideos(q, true);
+    if (more && more.length > 0) {
+      const container = document.getElementById('shortsContainer');
+      const startIdx = shortsReelList.length;
+      shortsReelList = shortsReelList.concat(more);
+      more.forEach((v, i) => {
+        const index = startIdx + i;
+        const slide = document.createElement('div');
+        slide.className = 'short-slide';
+        slide.id = `shortSlide_${index}`;
+        slide.dataset.index = index;
+        slide.dataset.id = v.id;
+        slide.innerHTML = `
+          <div class="short-card">
+            <iframe class="short-video-frame" 
+                    id="shortFrame_${index}" 
+                    src="" 
+                    data-src="https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&loop=1&playlist=${v.id}&playsinline=1&controls=0&modestbranding=1&rel=0&enablejsapi=1" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen>
+            </iframe>
+            <div class="short-overlay-bottom">
+              <div class="short-channel-row">
+                <img class="short-avatar" src="${v.thumbnail || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`}" alt="avatar" loading="lazy">
+                <span class="short-channel-name">@${escapeHtml(v.uploader || 'Creator')}</span>
+                <button class="short-sub-btn" onclick="toggleShortSub(this)">Subscribe</button>
+              </div>
+              <div class="short-caption">${escapeHtml(v.title)}</div>
+              <div class="short-sound-track">
+                <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                <span class="short-sound-name">${escapeHtml(v.title)} • Audio Asli</span>
+              </div>
+            </div>
+            <div class="short-action-rail">
+              <button class="short-action-btn" onclick="toggleShortLike(this)" title="Suka">
+                <div class="short-action-icon">
+                  <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                </div>
+                <span class="short-action-text">Suka</span>
+              </button>
+              <button class="short-action-btn" onclick="shareShort('${v.id}')" title="Bagikan">
+                <div class="short-action-icon">
+                  <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
+                </div>
+                <span class="short-action-text">Bagikan</span>
+              </button>
+              <button class="short-action-btn" onclick="openShortInWatch('${v.id}')" title="Buka Detail">
+                <div class="short-action-icon">
+                  <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+                </div>
+                <span class="short-action-text">Detail</span>
+              </button>
+              <button class="short-action-btn short-nav-btn desktop-only" onclick="scrollShortNav(-1)" title="Video Sebelumnya">
+                <div class="short-action-icon">
+                  <svg viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
+                </div>
+              </button>
+              <button class="short-action-btn short-nav-btn desktop-only" onclick="scrollShortNav(1)" title="Video Selanjutnya">
+                <div class="short-action-icon">
+                  <svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+                </div>
+              </button>
+            </div>
+          </div>
+        `;
+        container.appendChild(slide);
+        if (shortsObserver) shortsObserver.observe(slide);
+      });
+    }
+  } catch (err) {
+    console.warn('Gagal memuat lebih banyak shorts:', err);
+  } finally {
+    isFetchingShorts = false;
+  }
+}
+
+function scrollShortNav(dir) {
+  const container = document.getElementById('shortsContainer');
+  if (!container) return;
+  container.scrollBy({ top: dir * container.clientHeight, behavior: 'smooth' });
+}
+
+function toggleShortLike(btn) {
+  btn.classList.toggle('liked');
+  if (btn.classList.contains('liked')) {
+    showToast('Disukai! ❤️', '#ef4444');
+  }
+}
+
+function toggleShortSub(btn) {
+  btn.classList.toggle('subscribed');
+  btn.innerText = btn.classList.contains('subscribed') ? 'Disubscribe' : 'Subscribe';
+}
+
+function shareShort(videoId) {
+  const url = `https://www.youtube.com/shorts/${videoId}`;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('Link Shorts disalin: ' + url, '#10b981');
+    }).catch(() => {
+      showToast('Link: ' + url, '#2563eb');
+    });
+  } else {
+    showToast('Link: ' + url, '#2563eb');
+  }
+}
+
+function openShortInWatch(videoId) {
+  const found = shortsReelList.find(s => s.id === videoId);
+  const v = found || { id: videoId, title: 'YouTube Short', url: `https://www.youtube.com/shorts/${videoId}`, is_shorts: true };
+  currentQueue = shortsReelList;
+  currentQueueIndex = shortsReelList.findIndex(s => s.id === videoId);
+  playEmbeddedVideo(v);
+}
+
+window.addEventListener('keydown', (e) => {
+  const shortsView = document.getElementById('shortsView');
+  if (shortsView && shortsView.style.display !== 'none') {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      scrollShortNav(-1);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      scrollShortNav(1);
+    }
+  }
+});
 
 function switchToWatchViewDirect() {
   if (currentQueue && currentQueueIndex >= 0 && currentQueueIndex < currentQueue.length) {
@@ -223,6 +567,11 @@ function hideLoadMore() {
 
 // --- TAB LOADING ---
 async function loadTab(tabName, forceRefresh=false) {
+  if (tabName === 'shorts') {
+    loadShortsReel(forceRefresh);
+    return;
+  }
+
   switchToBrowse();
   currentTab = tabName;
   currentPage = 1;
@@ -849,6 +1198,22 @@ function userResumePlayback() {
   }
 }
 
+function playViaEmbedFallback(v) {
+  const standaloneIframe = document.getElementById('standalonePlayer');
+  if (!standaloneIframe) return;
+  if (player) {
+    try { player.pause(); player.removeAttribute('src'); player.load(); } catch (e) {}
+    player.style.display = 'none';
+  }
+  standaloneIframe.style.display = 'block';
+  standaloneIframe.src = `https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&playsinline=1&rel=0&modestbranding=1`;
+  const timelineBox = document.querySelector('.web-timeline-box');
+  if (timelineBox) timelineBox.style.display = 'none';
+  const qualityBox = document.getElementById('watchQualityBadge');
+  if (qualityBox) qualityBox.innerText = 'YouTube Embed (Cadangan Otomatis)';
+  showToast('Memutar via YouTube Embed (Stream cadangan)', '#2563eb');
+}
+
 async function playEmbeddedVideo(v) {
   currentVideo = v;
   streamTimeOffset = 0;
@@ -928,10 +1293,8 @@ async function playEmbeddedVideo(v) {
     clearTimeout(timer);
     hideOverlay();
     if (!player.src || player.src === '' || player.src.endsWith('/')) return;
-    const code = player.error ? player.error.code : 0;
-    if (code === 4 || code === 2) {
-      showToast('Kendala memutar stream di Web. Anda dapat klik "Ke MPV" bila perlu.', '#ef4444');
-    }
+    console.warn('HTML5 stream playback error, seamlessly falling back to clean embed player for', v.id);
+    playViaEmbedFallback(v);
   };
 
   player.ontimeupdate = () => {

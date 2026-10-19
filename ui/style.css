@@ -893,6 +893,219 @@ video#embeddedPlayer {
   box-shadow: 0 8px 32px rgba(0,0,0,0.8);
 }
 
+/* TIKTOK / YOUTUBE SHORTS FULL IMMERSIVE REEL */
+.shorts-view {
+  position: fixed;
+  top: 56px;
+  left: 240px;
+  right: 0;
+  bottom: 0;
+  background: #000;
+  z-index: 90;
+  overflow: hidden;
+}
+
+.shorts-reel-container {
+  width: 100%;
+  height: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.shorts-reel-container::-webkit-scrollbar {
+  display: none;
+}
+
+.short-slide {
+  width: 100%;
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-sizing: border-box;
+  padding: 10px 0;
+}
+
+.short-card {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  height: 100%;
+  max-height: calc(100vh - 76px);
+  aspect-ratio: 9 / 16;
+  background: #111;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.short-video-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #000;
+}
+
+.short-overlay-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 70px;
+  padding: 24px 16px 16px 16px;
+  background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, transparent 100%);
+  color: #fff;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.short-overlay-bottom * {
+  pointer-events: auto;
+}
+
+.short-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.short-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid rgba(255,255,255,0.8);
+}
+
+.short-channel-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+.short-sub-btn {
+  background: #fff;
+  color: #000;
+  border: none;
+  border-radius: 18px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.short-sub-btn.subscribed {
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+}
+
+.short-caption {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #eee;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+.short-sound-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #ccc;
+}
+.short-sound-track svg {
+  width: 13px;
+  height: 13px;
+  fill: #ccc;
+}
+
+.short-action-rail {
+  position: absolute;
+  right: 12px;
+  bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  z-index: 15;
+}
+
+.short-action-btn {
+  background: transparent;
+  border: none;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.short-action-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(30, 30, 30, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, background 0.15s;
+}
+.short-action-btn:hover .short-action-icon {
+  background: rgba(50, 50, 50, 0.9);
+  transform: scale(1.08);
+}
+.short-action-btn.liked .short-action-icon {
+  color: #ef4444;
+}
+.short-action-btn.liked svg {
+  fill: #ef4444 !important;
+}
+
+.short-action-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: #fff;
+}
+
+.short-action-text {
+  font-size: 11px;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+
+@media (max-width: 768px) {
+  .shorts-view {
+    top: 50px;
+    left: 0;
+    bottom: 56px;
+  }
+  .short-slide {
+    padding: 0;
+  }
+  .short-card {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    aspect-ratio: auto;
+  }
+}
+
 .mobile-nav {
   position: fixed;
   bottom: 0;
