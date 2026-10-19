@@ -12,7 +12,12 @@ let currentPlaylistSource = null;
 let selectedQuality = localStorage.getItem('fxtube_quality') || '480';
 let autoplayEnabled = localStorage.getItem('fxtube_autoplay') !== 'false';
 let accountMode = localStorage.getItem('fxtube_account_mode') || 'firefox';
-let playerMode = localStorage.getItem('fxtube_player_mode') || 'web';
+let savedMode = localStorage.getItem('fxtube_player_mode');
+if (!savedMode || savedMode === 'mpv') {
+  savedMode = 'web';
+  localStorage.setItem('fxtube_player_mode', 'web');
+}
+let playerMode = savedMode;
 let streamTimeOffset = 0;
 let isTimelineDragging = false;
 
@@ -267,11 +272,11 @@ function renderVideos(videos) {
         <div class="card-title" title="${escapeHtml(v.title)}">${escapeHtml(v.title)}</div>
         <div class="card-channel">${escapeHtml(v.channel || v.uploader || 'YouTube')}</div>
         <div class="card-footer">
-          <button class="btn-card-mpv" onclick="event.stopPropagation(); playDirectMPV(${index}, true)" title="Putar di MPV Native (~40MB RAM)">
-            ${ICONS.play} Putar MPV
+          <button class="btn-card-web" onclick="event.stopPropagation(); playDirectEmbedded(${index}, true)" title="Putar di Web Browser (Default)">
+            ${ICONS.eye} Putar Web
           </button>
-          <button class="btn-card-web" onclick="event.stopPropagation(); playDirectEmbedded(${index}, true)" title="Putar di dalam Halaman">
-            ${ICONS.eye} Web
+          <button class="btn-card-mpv" onclick="event.stopPropagation(); playDirectMPV(${index}, true)" title="Putar di MPV Native (~40MB RAM)">
+            ${ICONS.play} MPV
           </button>
         </div>
       </div>
@@ -565,10 +570,10 @@ async function playEmbeddedVideo(v) {
   player.onerror = () => {
     clearTimeout(timer);
     hideOverlay();
+    if (!player.src || player.src === '' || player.src.endsWith('/')) return;
     const code = player.error ? player.error.code : 0;
     console.error('Player error code:', code);
-    showToast('Stream Web gagal dimuat. Mengalihkan ke MPV...', '#ef4444');
-    popOutToMPV();
+    showToast('Kendala memutar stream di Web. Anda dapat klik "Ke MPV" bila perlu.', '#ef4444');
   };
 
   player.ontimeupdate = () => {
@@ -702,8 +707,7 @@ function switchQuality(q) {
   player.onerror = () => {
     clearTimeout(timer);
     hideOverlay();
-    showToast(`Kualitas ${q}p gagal di browser. Membuka di MPV...`, '#ef4444');
-    popOutToMPV();
+    showToast(`Kualitas ${q}p gagal di browser.`, '#ef4444');
   };
 
   const startOffset = Math.floor(currentActual);
