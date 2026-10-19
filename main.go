@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -51,9 +52,18 @@ func main() {
 
 	log.Printf("[FX Tube] Inisialisasi: Firefox Profile: %s\n", profile)
 
+	savedAccMode := "guest"
+	homeDir, _ := os.UserHomeDir()
+	if data, err := os.ReadFile(filepath.Join(homeDir, ".config", "fxtube", "account_mode.txt")); err == nil {
+		m := strings.TrimSpace(string(data))
+		if m != "" {
+			savedAccMode = m
+		}
+	}
+
 	app := &App{
 		firefoxProfile: profile,
-		accountMode:    "guest",
+		accountMode:    savedAccMode,
 		customCookies:  customCookies,
 		mpvSockPath:    mpvSock,
 		streamCache:    make(map[string]StreamCacheItem),

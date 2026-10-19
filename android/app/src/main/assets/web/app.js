@@ -13,17 +13,8 @@ let currentAvailableQualities = ['144', '240', '360', '480', '720', '1080'];
 
 let selectedQuality = localStorage.getItem('fxtube_quality') || '480';
 let autoplayEnabled = localStorage.getItem('fxtube_autoplay') !== 'false';
-let accountMode = localStorage.getItem('fxtube_account_mode');
-if (!accountMode || accountMode === 'firefox') {
-  accountMode = 'guest';
-  localStorage.setItem('fxtube_account_mode', 'guest');
-}
-let savedMode = localStorage.getItem('fxtube_player_mode');
-if (!savedMode || savedMode === 'mpv') {
-  savedMode = 'web';
-  localStorage.setItem('fxtube_player_mode', 'web');
-}
-let playerMode = savedMode;
+let accountMode = localStorage.getItem('fxtube_account_mode') || 'guest';
+let playerMode = localStorage.getItem('fxtube_player_mode') || 'web';
 let streamTimeOffset = 0;
 let isTimelineDragging = false;
 
@@ -1632,8 +1623,8 @@ function openSettingsModal() {
   const pMpv = document.getElementById('playMPV');
   const pWeb = document.getElementById('playWeb');
   if (pMpv && pWeb) {
-    if (playerMode === 'web') pWeb.checked = true;
-    else pMpv.checked = true;
+    if (playerMode === 'mpv') pMpv.checked = true;
+    else pWeb.checked = true;
   }
 
   const qualityRadios = ['144', '240', '360', '480', '720', '1080'];
@@ -1646,9 +1637,9 @@ function openSettingsModal() {
   const aCustom = document.getElementById('accCustom');
   const aFirefox = document.getElementById('accFirefox');
   if (aGuest && aCustom && aFirefox) {
-    if (accountMode === 'guest') aGuest.checked = true;
+    if (accountMode === 'firefox') aFirefox.checked = true;
     else if (accountMode === 'custom') aCustom.checked = true;
-    else aFirefox.checked = true;
+    else aGuest.checked = true;
   }
 
   const autoEl = document.getElementById('setAutoplay');
@@ -1677,7 +1668,16 @@ function closeSettingsModal() {
 function updateSidebarBadges() {
   const accEl = document.getElementById('accountModeBadge');
   if (accEl) {
-    accEl.innerText = accountMode === 'firefox' ? 'Firefox Sync' : (accountMode === 'custom' ? 'Cookies.txt' : 'Guest Mode');
+    if (currentGoogleProfile && currentGoogleProfile.is_logged_in) {
+      accEl.innerText = 'Akun Google';
+    } else {
+      const modeLabels = {
+        'firefox': 'Firefox Sync',
+        'guest': 'Mode Tamu',
+        'custom': 'cookies.txt'
+      };
+      accEl.innerText = modeLabels[accountMode] || 'Mode Tamu';
+    }
   }
   const pEl = document.getElementById('playerModeBadge');
   if (pEl) {
@@ -1689,10 +1689,10 @@ function updateSidebarBadges() {
   }
 }
 
-function saveSettings() {
+function saveSettings(silent = false) {
   const pMode = document.querySelector('input[name="play_mode"]:checked')?.value || playerMode || 'web';
   const q = document.querySelector('input[name="default_quality"]:checked')?.value || selectedQuality || '480';
-  const acc = document.querySelector('input[name="acc_mode"]:checked')?.value || accountMode || 'firefox';
+  const acc = document.querySelector('input[name="acc_mode"]:checked')?.value || accountMode || 'guest';
   const auto = document.getElementById('setAutoplay')?.checked ?? autoplayEnabled;
 
   playerMode = pMode;
@@ -1705,13 +1705,11 @@ function saveSettings() {
   localStorage.setItem('fxtube_autoplay', auto);
   localStorage.setItem('fxtube_account_mode', acc);
 
-  closeSettingsModal();
-  showToast(`Pengaturan disimpan: Mode ${pMode.toUpperCase()}`);
-
   const chkAuto = document.getElementById('chkAutoplay');
   if (chkAuto) chkAuto.checked = auto;
   renderQualityButtons(currentAvailableQualities);
   updateSidebarBadges();
+  updateSidebarProfileUI();
 
   fetchWithTimeout('/api/account-mode', {
     method: 'POST',
@@ -1720,7 +1718,19 @@ function saveSettings() {
     timeout: 3000
   }).catch(() => {});
 
-  refreshCurrentTab();
+  const modeLabels = {
+    'firefox': 'Firefox Sync',
+    'guest': 'Mode Tamu',
+    'custom': 'cookies.txt'
+  };
+  if (!silent) {
+    showToast(`Pengaturan disimpan: ${modeLabels[acc] || acc} • ${q}p`);
+  }
+}
+
+function saveAndCloseSettings() {
+  saveSettings(false);
+  closeSettingsModal();
 }
 
 function setupInfiniteScroll() {
@@ -1822,7 +1832,7 @@ async function fetchGoogleProfile() {
       const data = await res.json();
       if (data && data.profile) {
         currentGoogleProfile = data.profile;
-        if (data.mode) {
+        if (data.mode && !localStorage.getItem('fxtube_account_mode')) {
           accountMode = data.mode;
         }
       }
@@ -1843,6 +1853,13 @@ function updateSidebarProfileUI() {
   const userHandle = document.getElementById('sidebarUserHandle');
   const accModeBadge = document.getElementById('accountModeBadge');
 
+  const modeLabels = {
+    'firefox': 'Firefox Sync',
+    'guest': 'Mode Tamu',
+    'custom': 'cookies.txt',
+    'google': 'Akun Google'
+  };
+
   if (currentGoogleProfile && currentGoogleProfile.is_logged_in) {
     if (guestCard) guestCard.style.display = 'none';
     if (loggedInCard) loggedInCard.style.display = 'flex';
@@ -1862,7 +1879,21 @@ function updateSidebarProfileUI() {
   } else {
     if (guestCard) guestCard.style.display = 'flex';
     if (loggedInCard) loggedInCard.style.display = 'none';
-    if (accModeBadge) accModeBadge.innerText = 'Mode Tamu';
+    if (accModeBadge) {
+      accModeBadge.innerText = modeLabels[accountMode] || 'Mode Tamu';
+    }
+    const gName = guestCard ? guestCard.querySelector('.account-name') : null;
+    const gSub = guestCard ? guestCard.querySelector('.account-subtext') : null;
+    if (accountMode === 'firefox') {
+      if (gName) gName.innerText = 'Firefox Sync';
+      if (gSub) gSub.innerText = 'Tersinkron dengan Firefox';
+    } else if (accountMode === 'custom') {
+      if (gName) gName.innerText = 'cookies.txt';
+      if (gSub) gSub.innerText = 'Sesi login custom aktif';
+    } else {
+      if (gName) gName.innerText = 'Mode Tamu';
+      if (gSub) gSub.innerText = 'Mau login akun Google?';
+    }
   }
 }
 
@@ -2489,7 +2520,13 @@ function continueAsGuest() {
   showToast('Menggunakan FX Tube sebagai Tamu (Default)');
 }
 
-function openOfficialGoogleLogin() {
-  window.open('https://accounts.google.com/ServiceLogin?service=youtube', '_blank');
-  showToast('Silakan login di tab Google, lalu sambungkan via Handle atau Impor Sesi.');
+function openOfficialGoogleLogin(e) {
+  const targetUrl = 'https://accounts.google.com/ServiceLogin?service=youtube';
+  // 1. Launch in default desktop browser via host xdg-open (bypasses app-mode popup blocking)
+  fetch('/api/open-external?url=' + encodeURIComponent(targetUrl)).catch(() => {});
+  // 2. Also attempt window.open in web context
+  try {
+    window.open(targetUrl, '_blank');
+  } catch (err) {}
+  showToast('Membuka browser sistem untuk login Google...', '#2563eb');
 }

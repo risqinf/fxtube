@@ -7,6 +7,10 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -49,6 +53,7 @@ func (a *App) setupRoutes() http.Handler {
 	mux.HandleFunc("/api/downloads/delete", a.handleDeleteDownload)
 	mux.HandleFunc("/api/downloads/config", a.handleDownloadConfig)
 	mux.HandleFunc("/api/downloads/play", a.handleStreamLocalDownload)
+	mux.HandleFunc("/api/open-external", a.handleOpenExternal)
 	mux.HandleFunc("/api/ping", a.handlePing)
 
 	return mux
@@ -186,7 +191,11 @@ func (a *App) handleAccountMode(w http.ResponseWriter, r *http.Request) {
 		var req AccountModeRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err == nil && req.Mode != "" {
 			a.accountMode = req.Mode
-			log.Printf("[FX Tube] Mode Akun diubah ke: %s\n", a.accountMode)
+			home, _ := os.UserHomeDir()
+			dir := filepath.Join(home, ".config", "fxtube")
+			_ = os.MkdirAll(dir, 0755)
+			_ = os.WriteFile(filepath.Join(dir, "account_mode.txt"), []byte(req.Mode), 0644)
+			log.Printf("[FX Tube] Mode Akun diubah & disimpan ke: %s\n", a.accountMode)
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -194,6 +203,32 @@ func (a *App) handleAccountMode(w http.ResponseWriter, r *http.Request) {
 		"mode":    a.accountMode,
 		"profile": a.firefoxProfile,
 	})
+}
+
+// handleOpenExternal launches a URL in the user's default desktop browser
+func (a *App) handleOpenExternal(w http.ResponseWriter, r *http.Request) {
+	targetURL := r.URL.Query().Get("url")
+	if targetURL == "" {
+		http.Error(w, "Missing url", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("[FX Tube] Membuka URL di browser sistem: %s\n", targetURL)
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "", targetURL)
+	case "darwin":
+		cmd = exec.Command("open", targetURL)
+	default:
+		cmd = exec.Command("xdg-open", targetURL)
+	}
+	cmd.Env = os.Environ()
+	_ = cmd.Start()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func (a *App) handlePlay(w http.ResponseWriter, r *http.Request) {
