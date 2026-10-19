@@ -32,7 +32,7 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "-v", "--version", "version":
-			log.Println("FX Tube v1.4.3 (Ultra Lightweight YouTube Client)")
+			log.Println("FX Tube v1.4.4 (Ultra Lightweight YouTube Client)")
 			return
 		}
 	}

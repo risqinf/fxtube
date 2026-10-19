@@ -185,8 +185,14 @@ function setTabActive(tabName) {
 function stopAllShortsPlayers() {
   const shortsContainer = document.getElementById('shortsContainer');
   if (shortsContainer) {
-    const iframes = shortsContainer.querySelectorAll('.short-video-frame');
-    iframes.forEach(f => { f.src = ''; });
+    const videos = shortsContainer.querySelectorAll('.short-video-frame');
+    videos.forEach(v => {
+      try {
+        v.pause();
+        v.removeAttribute('src');
+        v.load();
+      } catch (e) {}
+    });
   }
 }
 
@@ -202,22 +208,98 @@ function stopWebPlayer() {
   fetch('/api/stop').catch(() => {});
 }
 
+// --- IN-APP MINI PLAYER CONTROLS (POPUP INSIDE APP) ---
+let isMiniPlayerActive = false;
+
+function activateMiniPlayer() {
+  if (!player || player.paused || !player.src || isMpvActive) {
+    stopWebPlayer();
+    return;
+  }
+  isMiniPlayerActive = true;
+  const watchView = document.getElementById('watchView');
+  const container = document.getElementById('watchVideoContainer');
+  const overlay = document.getElementById('miniPlayerOverlay');
+  const titleEl = document.getElementById('miniPlayerTitle');
+
+  if (watchView) watchView.classList.add('watch-view-mini');
+  if (container) {
+    container.classList.add('mini-player-active');
+    container.onclick = (e) => {
+      if (isMiniPlayerActive && !e.target.closest('.mini-player-btn')) {
+        restoreFromMiniPlayer();
+      }
+    };
+  }
+  if (overlay) overlay.style.display = 'flex';
+  if (titleEl && currentVideo) {
+    titleEl.innerText = currentVideo.title || 'Sedang Memutar...';
+  }
+}
+
+function restoreFromMiniPlayer() {
+  if (!isMiniPlayerActive) return;
+  isMiniPlayerActive = false;
+  const watchView = document.getElementById('watchView');
+  const container = document.getElementById('watchVideoContainer');
+  const overlay = document.getElementById('miniPlayerOverlay');
+
+  if (container) container.classList.remove('mini-player-active');
+  if (watchView) {
+    watchView.classList.remove('watch-view-mini');
+    watchView.style.display = 'block';
+  }
+  if (overlay) overlay.style.display = 'none';
+
+  document.getElementById('browseView').style.display = 'none';
+  const downloadsView = document.getElementById('downloadsView');
+  if (downloadsView) downloadsView.style.display = 'none';
+  const shortsView = document.getElementById('shortsView');
+  if (shortsView) shortsView.style.display = 'none';
+  stopAllShortsPlayers();
+}
+
+function closeMiniPlayer() {
+  isMiniPlayerActive = false;
+  const watchView = document.getElementById('watchView');
+  const container = document.getElementById('watchVideoContainer');
+  const overlay = document.getElementById('miniPlayerOverlay');
+
+  if (container) container.classList.remove('mini-player-active');
+  if (watchView) {
+    watchView.classList.remove('watch-view-mini');
+    watchView.style.display = 'none';
+  }
+  if (overlay) overlay.style.display = 'none';
+  stopWebPlayer();
+}
+
 function switchToBrowse() {
   const shortsView = document.getElementById('shortsView');
   if (shortsView) shortsView.style.display = 'none';
   stopAllShortsPlayers();
 
-  document.getElementById('watchView').style.display = 'none';
   const downloadsView = document.getElementById('downloadsView');
   if (downloadsView) downloadsView.style.display = 'none';
+
+  if (player && !player.paused && player.src && !isMpvActive && document.getElementById('watchView')?.style.display !== 'none') {
+    activateMiniPlayer();
+  } else if (!isMiniPlayerActive) {
+    document.getElementById('watchView').style.display = 'none';
+    stopWebPlayer();
+  }
   document.getElementById('browseView').style.display = 'block';
-  stopWebPlayer();
 }
 
 function switchToWatch() {
   const shortsView = document.getElementById('shortsView');
   if (shortsView) shortsView.style.display = 'none';
   stopAllShortsPlayers();
+
+  if (isMiniPlayerActive) {
+    restoreFromMiniPlayer();
+    return;
+  }
 
   document.getElementById('browseView').style.display = 'none';
   const downloadsView = document.getElementById('downloadsView');
@@ -227,21 +309,32 @@ function switchToWatch() {
 
 function switchToShortsView() {
   document.getElementById('browseView').style.display = 'none';
-  document.getElementById('watchView').style.display = 'none';
   const downloadsView = document.getElementById('downloadsView');
   if (downloadsView) downloadsView.style.display = 'none';
-  stopWebPlayer();
+
+  if (isMiniPlayerActive) {
+    closeMiniPlayer();
+  } else {
+    document.getElementById('watchView').style.display = 'none';
+    stopWebPlayer();
+  }
   const shortsView = document.getElementById('shortsView');
   if (shortsView) shortsView.style.display = 'block';
 }
 
 function switchToDownloadsView() {
   document.getElementById('browseView').style.display = 'none';
-  document.getElementById('watchView').style.display = 'none';
   const shortsView = document.getElementById('shortsView');
   if (shortsView) shortsView.style.display = 'none';
   stopAllShortsPlayers();
-  stopWebPlayer();
+
+  if (player && !player.paused && player.src && !isMpvActive && document.getElementById('watchView')?.style.display !== 'none') {
+    activateMiniPlayer();
+  } else if (!isMiniPlayerActive) {
+    document.getElementById('watchView').style.display = 'none';
+    stopWebPlayer();
+  }
+
   const downloadsView = document.getElementById('downloadsView');
   if (downloadsView) downloadsView.style.display = 'block';
   loadDownloadsList();
@@ -302,6 +395,84 @@ async function loadShortsReel(forceRefresh = false) {
   }
 }
 
+function buildShortSlideHTML(v, index) {
+  const streamSrc = `/api/stream?url=${encodeURIComponent(v.url || `https://www.youtube.com/watch?v=${v.id}`)}&quality=480`;
+  const posterSrc = v.thumbnail || (v.thumbnails && v.thumbnails.length > 0 ? v.thumbnails[v.thumbnails.length - 1].url : `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`);
+
+  return `
+    <div class="short-card">
+      <video class="short-video-frame" 
+             id="shortVideo_${index}" 
+             playsinline 
+             loop
+             preload="none"
+             poster="${posterSrc}"
+             data-src="${streamSrc}"
+             onclick="toggleShortPlayPause(this)">
+      </video>
+
+      <!-- Gradient Overlay Bottom -->
+      <div class="short-overlay-bottom">
+        <div class="short-channel-row">
+          <img class="short-avatar" src="${posterSrc}" alt="avatar" loading="lazy">
+          <span class="short-channel-name">@${escapeHtml(v.uploader || v.channel || 'Creator')}</span>
+          <button class="short-sub-btn" onclick="toggleShortSub(this)">Subscribe</button>
+        </div>
+        <div class="short-caption">${escapeHtml(v.title)}</div>
+        <div class="short-sound-track">
+          <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          <span class="short-sound-name">${escapeHtml(v.title)} • Audio Asli</span>
+        </div>
+      </div>
+
+      <!-- Action buttons right side (TikTok style) -->
+      <div class="short-action-rail">
+        <button class="short-action-btn" onclick="toggleShortLike(this)" title="Suka">
+          <div class="short-action-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          </div>
+          <span class="short-action-text">Suka</span>
+        </button>
+
+        <button class="short-action-btn" onclick="shareShort('${v.id}')" title="Bagikan">
+          <div class="short-action-icon">
+            <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
+          </div>
+          <span class="short-action-text">Bagikan</span>
+        </button>
+
+        <button class="short-action-btn" onclick="openShortInWatch('${v.id}')" title="Buka Detail">
+          <div class="short-action-icon">
+            <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+          </div>
+          <span class="short-action-text">Detail</span>
+        </button>
+
+        <button class="short-action-btn short-nav-btn desktop-only" onclick="scrollShortNav(-1)" title="Video Sebelumnya">
+          <div class="short-action-icon">
+            <svg viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
+          </div>
+        </button>
+
+        <button class="short-action-btn short-nav-btn desktop-only" onclick="scrollShortNav(1)" title="Video Selanjutnya">
+          <div class="short-action-icon">
+            <svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+          </div>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function toggleShortPlayPause(video) {
+  if (!video) return;
+  if (video.paused) {
+    video.play().catch(() => {});
+  } else {
+    video.pause();
+  }
+}
+
 function renderShortsReel(videos) {
   const container = document.getElementById('shortsContainer');
   if (!container) return;
@@ -321,68 +492,7 @@ function renderShortsReel(videos) {
     slide.id = `shortSlide_${index}`;
     slide.dataset.index = index;
     slide.dataset.id = v.id;
-
-    slide.innerHTML = `
-      <div class="short-card">
-        <iframe class="short-video-frame" 
-                id="shortFrame_${index}" 
-                src="" 
-                data-src="https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&loop=1&playlist=${v.id}&playsinline=1&controls=0&modestbranding=1&rel=0&enablejsapi=1" 
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                allowfullscreen>
-        </iframe>
-
-        <!-- Gradient Overlay Bottom -->
-        <div class="short-overlay-bottom">
-          <div class="short-channel-row">
-            <img class="short-avatar" src="${v.thumbnail || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`}" alt="avatar" loading="lazy">
-            <span class="short-channel-name">@${escapeHtml(v.uploader || 'Creator')}</span>
-            <button class="short-sub-btn" onclick="toggleShortSub(this)">Subscribe</button>
-          </div>
-          <div class="short-caption">${escapeHtml(v.title)}</div>
-          <div class="short-sound-track">
-            <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-            <span class="short-sound-name">${escapeHtml(v.title)} • Audio Asli</span>
-          </div>
-        </div>
-
-        <!-- Action buttons right side (TikTok style) -->
-        <div class="short-action-rail">
-          <button class="short-action-btn" onclick="toggleShortLike(this)" title="Suka">
-            <div class="short-action-icon">
-              <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-            </div>
-            <span class="short-action-text">Suka</span>
-          </button>
-
-          <button class="short-action-btn" onclick="shareShort('${v.id}')" title="Bagikan">
-            <div class="short-action-icon">
-              <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
-            </div>
-            <span class="short-action-text">Bagikan</span>
-          </button>
-
-          <button class="short-action-btn" onclick="openShortInWatch('${v.id}')" title="Buka Detail">
-            <div class="short-action-icon">
-              <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
-            </div>
-            <span class="short-action-text">Detail</span>
-          </button>
-
-          <button class="short-action-btn short-nav-btn desktop-only" onclick="scrollShortNav(-1)" title="Video Sebelumnya">
-            <div class="short-action-icon">
-              <svg viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
-            </div>
-          </button>
-
-          <button class="short-action-btn short-nav-btn desktop-only" onclick="scrollShortNav(1)" title="Video Selanjutnya">
-            <div class="short-action-icon">
-              <svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
-            </div>
-          </button>
-        </div>
-      </div>
-    `;
+    slide.innerHTML = buildShortSlideHTML(v, index);
     container.appendChild(slide);
   });
 
@@ -399,17 +509,23 @@ function setupShortsObserver() {
     entries.forEach(entry => {
       const slide = entry.target;
       const idx = parseInt(slide.dataset.index, 10);
-      const iframe = slide.querySelector('.short-video-frame');
+      const video = slide.querySelector('.short-video-frame');
       if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
-        if (iframe && iframe.src !== iframe.dataset.src) {
-          iframe.src = iframe.dataset.src;
+        if (video) {
+          if (!video.src || video.src !== video.dataset.src) {
+            video.src = video.dataset.src;
+            video.load();
+          }
+          video.play().catch(e => console.warn('Short auto-play:', e));
         }
         if (idx >= shortsReelList.length - 3 && !isFetchingShorts) {
           loadMoreShorts();
         }
       } else {
-        if (iframe && iframe.src) {
-          iframe.src = '';
+        if (video && video.src) {
+          video.pause();
+          video.removeAttribute('src');
+          video.load();
         }
       }
     });
@@ -424,9 +540,13 @@ function setupShortsObserver() {
 function activateShortSlide(index) {
   const slide = document.getElementById(`shortSlide_${index}`);
   if (!slide) return;
-  const iframe = slide.querySelector('.short-video-frame');
-  if (iframe && iframe.src !== iframe.dataset.src) {
-    iframe.src = iframe.dataset.src;
+  const video = slide.querySelector('.short-video-frame');
+  if (video) {
+    if (!video.src || video.src !== video.dataset.src) {
+      video.src = video.dataset.src;
+      video.load();
+    }
+    video.play().catch(() => {});
   }
 }
 
@@ -448,59 +568,7 @@ async function loadMoreShorts() {
         slide.id = `shortSlide_${index}`;
         slide.dataset.index = index;
         slide.dataset.id = v.id;
-        slide.innerHTML = `
-          <div class="short-card">
-            <iframe class="short-video-frame" 
-                    id="shortFrame_${index}" 
-                    src="" 
-                    data-src="https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&loop=1&playlist=${v.id}&playsinline=1&controls=0&modestbranding=1&rel=0&enablejsapi=1" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                    allowfullscreen>
-            </iframe>
-            <div class="short-overlay-bottom">
-              <div class="short-channel-row">
-                <img class="short-avatar" src="${v.thumbnail || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`}" alt="avatar" loading="lazy">
-                <span class="short-channel-name">@${escapeHtml(v.uploader || 'Creator')}</span>
-                <button class="short-sub-btn" onclick="toggleShortSub(this)">Subscribe</button>
-              </div>
-              <div class="short-caption">${escapeHtml(v.title)}</div>
-              <div class="short-sound-track">
-                <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-                <span class="short-sound-name">${escapeHtml(v.title)} • Audio Asli</span>
-              </div>
-            </div>
-            <div class="short-action-rail">
-              <button class="short-action-btn" onclick="toggleShortLike(this)" title="Suka">
-                <div class="short-action-icon">
-                  <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                </div>
-                <span class="short-action-text">Suka</span>
-              </button>
-              <button class="short-action-btn" onclick="shareShort('${v.id}')" title="Bagikan">
-                <div class="short-action-icon">
-                  <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
-                </div>
-                <span class="short-action-text">Bagikan</span>
-              </button>
-              <button class="short-action-btn" onclick="openShortInWatch('${v.id}')" title="Buka Detail">
-                <div class="short-action-icon">
-                  <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
-                </div>
-                <span class="short-action-text">Detail</span>
-              </button>
-              <button class="short-action-btn short-nav-btn desktop-only" onclick="scrollShortNav(-1)" title="Video Sebelumnya">
-                <div class="short-action-icon">
-                  <svg viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
-                </div>
-              </button>
-              <button class="short-action-btn short-nav-btn desktop-only" onclick="scrollShortNav(1)" title="Video Selanjutnya">
-                <div class="short-action-icon">
-                  <svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
-                </div>
-              </button>
-            </div>
-          </div>
-        `;
+        slide.innerHTML = buildShortSlideHTML(v, index);
         container.appendChild(slide);
         if (shortsObserver) shortsObserver.observe(slide);
       });
@@ -1228,8 +1296,12 @@ function userResumePlayback() {
 }
 
 async function playEmbeddedVideo(v) {
+  if (isMiniPlayerActive) {
+    restoreFromMiniPlayer();
+  }
   currentVideo = v;
   streamTimeOffset = 0;
+  if (player) delete player.dataset.retried;
   switchToWatch();
   loadVideoComments(v);
   recordLocalHistory(v);
@@ -1308,6 +1380,21 @@ async function playEmbeddedVideo(v) {
     hideOverlay();
     if (!player.src || player.src === '' || player.src.endsWith('/')) return;
     console.warn('HTML5 stream playback error for', v.id);
+
+    // Auto-retry with 360p format 18 before giving up
+    if (selectedQuality !== '360' && !player.dataset.retried) {
+      player.dataset.retried = 'true';
+      showToast('Koneksi lambat, mencoba resolusi 360p...', '#f59e0b');
+      selectedQuality = '360';
+      renderQualityButtons(currentAvailableQualities);
+      const fallbackUrl = `/api/stream?url=${encodeURIComponent(v.url)}&quality=360&_t=${Date.now()}`;
+      player.src = fallbackUrl;
+      player.load();
+      player.play().catch(() => {});
+      return;
+    }
+
+    delete player.dataset.retried;
     showToast('Gagal memuat stream video. Anda dapat membuka di MPV atau mengunduhnya.', '#ef4444');
   };
 
@@ -1700,6 +1787,24 @@ function saveSettings(silent = false) {
   autoplayEnabled = auto;
   accountMode = acc;
 
+  if (acc === 'firefox') {
+    currentGoogleProfile = {
+      name: 'Firefox YouTube',
+      handle: '@firefox_sync',
+      avatar: 'https://www.gstatic.com/youtube/img/creator/avatar/creator_avatar_default.png',
+      channel_url: 'https://www.youtube.com',
+      is_logged_in: true
+    };
+  } else if (acc === 'guest') {
+    currentGoogleProfile = {
+      name: 'Tamu',
+      handle: '@guest',
+      avatar: '',
+      channel_url: '',
+      is_logged_in: false
+    };
+  }
+
   localStorage.setItem('fxtube_player_mode', pMode);
   localStorage.setItem('fxtube_quality', q);
   localStorage.setItem('fxtube_autoplay', auto);
@@ -1710,6 +1815,7 @@ function saveSettings(silent = false) {
   renderQualityButtons(currentAvailableQualities);
   updateSidebarBadges();
   updateSidebarProfileUI();
+  updateCommentsAuthUI();
 
   fetchWithTimeout('/api/account-mode', {
     method: 'POST',
@@ -1923,13 +2029,19 @@ function updateCommentsAuthUI() {
 }
 
 function openUserProfileChannel() {
+  let target = 'https://www.youtube.com';
   if (currentGoogleProfile && currentGoogleProfile.channel_url) {
-    window.open(currentGoogleProfile.channel_url, '_blank');
+    target = currentGoogleProfile.channel_url;
   } else if (currentGoogleProfile && currentGoogleProfile.handle) {
-    window.open(`https://www.youtube.com/${currentGoogleProfile.handle}`, '_blank');
+    target = `https://www.youtube.com/${currentGoogleProfile.handle}`;
   } else {
     openLoginModal();
+    return;
   }
+  fetch('/api/open-external?url=' + encodeURIComponent(target)).catch(() => {});
+  try {
+    window.open(target, '_blank');
+  } catch (e) {}
 }
 
 function openLoginModal() {
@@ -2521,12 +2633,13 @@ function continueAsGuest() {
 }
 
 function openOfficialGoogleLogin(e) {
+  if (e) e.preventDefault();
   const targetUrl = 'https://accounts.google.com/ServiceLogin?service=youtube';
-  // 1. Launch in default desktop browser via host xdg-open (bypasses app-mode popup blocking)
+  // 1. Launch in default desktop browser via host xdg-open (bypasses Chromium --app mode blocking)
   fetch('/api/open-external?url=' + encodeURIComponent(targetUrl)).catch(() => {});
   // 2. Also attempt window.open in web context
   try {
     window.open(targetUrl, '_blank');
   } catch (err) {}
-  showToast('Membuka browser sistem untuk login Google...', '#2563eb');
+  showToast('Membuka Sign-In Google di browser. Setelah login, klik "Sinkronkan Sesi Sekarang"!', '#3b82f6');
 }

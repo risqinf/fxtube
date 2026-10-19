@@ -90,6 +90,7 @@ func (a *App) startMpv(req PlayRequest) error {
 			"--hwdec=no",
 			"--vd-lavc-threads=4",
 			"--vo=gpu,wlshm,x11",
+			"--no-ontop",
 			"--demuxer-max-bytes=24MiB",
 			"--demuxer-readahead-secs=10",
 			"--input-ipc-server="+a.mpvSockPath,
@@ -101,6 +102,7 @@ func (a *App) startMpv(req PlayRequest) error {
 	} else if req.Mode == "audio" {
 		mpvArgs = append(mpvArgs,
 			"--no-video",
+			"--no-ontop",
 			"--ytdl-format=bestaudio[acodec^=mp4a]/bestaudio/best",
 			"--input-ipc-server="+a.mpvSockPath,
 			fmt.Sprintf("--title=FX Tube Audio: %s", req.Title),
@@ -117,6 +119,7 @@ func (a *App) startMpv(req PlayRequest) error {
 			"--hwdec=no",
 			"--vd-lavc-threads=4",
 			"--vo=gpu,wlshm,x11",
+			"--no-ontop",
 			"--demuxer-max-bytes=24MiB",
 			"--demuxer-readahead-secs=10",
 			"--audio-display=no",

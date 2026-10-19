@@ -39,43 +39,67 @@ func (a *App) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Single combined stream: proxy directly with HTTP Range byte-seeking support
-	if item.IsCombined {
+	// 1. Single combined stream: proxy directly if standard MP4/WebM with HTTP Range byte-seeking support
+	// If it is HLS / .m3u8, it MUST be remuxed by FFmpeg because desktop Chromium cannot decode m3u8 natively
+	isHLS := strings.Contains(item.VideoURL, ".m3u8") || strings.Contains(item.VideoURL, "manifest") || strings.Contains(item.VideoURL, "live")
+	if item.IsCombined && !isHLS {
 		proxyDirectStream(w, r, item.VideoURL)
 		return
 	}
 
-	// 2. Separate video and audio: remux on the fly via local FFmpeg per connection
+	// 2. Remux on the fly via local FFmpeg per connection (handles separate video+audio or HLS live streams)
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
+	ua := "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
 	var ffmpegArgs []string
 	ffmpegArgs = append(ffmpegArgs, "-y")
 	if start != "" && start != "0" {
 		ffmpegArgs = append(ffmpegArgs, "-ss", start)
 	}
 	ffmpegArgs = append(ffmpegArgs,
+		"-user_agent", ua,
 		"-reconnect", "1",
 		"-reconnect_streamed", "1",
 		"-reconnect_delay_max", "5",
+		"-analyzeduration", "2M",
+		"-probesize", "2M",
 		"-i", item.VideoURL,
 	)
-	if start != "" && start != "0" {
-		ffmpegArgs = append(ffmpegArgs, "-ss", start)
+
+	// If separate audio stream exists, add it as second input
+	if item.AudioURL != "" && item.AudioURL != item.VideoURL && !isHLS {
+		if start != "" && start != "0" {
+			ffmpegArgs = append(ffmpegArgs, "-ss", start)
+		}
+		ffmpegArgs = append(ffmpegArgs,
+			"-user_agent", ua,
+			"-reconnect", "1",
+			"-reconnect_streamed", "1",
+			"-reconnect_delay_max", "5",
+			"-analyzeduration", "2M",
+			"-probesize", "2M",
+			"-i", item.AudioURL,
+			"-c:v", "copy",
+			"-c:a", "aac",
+			"-b:a", "128k",
+			"-f", "mp4",
+			"-movflags", "frag_keyframe+empty_moov+default_base_moof",
+			"-loglevel", "error",
+			"pipe:1",
+		)
+	} else {
+		// Single multiplexed stream or HLS live stream
+		ffmpegArgs = append(ffmpegArgs,
+			"-c:v", "copy",
+			"-c:a", "aac",
+			"-b:a", "128k",
+			"-f", "mp4",
+			"-movflags", "frag_keyframe+empty_moov+default_base_moof",
+			"-loglevel", "error",
+			"pipe:1",
+		)
 	}
-	ffmpegArgs = append(ffmpegArgs,
-		"-reconnect", "1",
-		"-reconnect_streamed", "1",
-		"-reconnect_delay_max", "5",
-		"-i", item.AudioURL,
-		"-c:v", "copy",
-		"-c:a", "aac",
-		"-b:a", "128k",
-		"-f", "mp4",
-		"-movflags", "frag_keyframe+empty_moov+default_base_moof",
-		"-loglevel", "error",
-		"pipe:1",
-	)
 
 	cmd := exec.CommandContext(ctx, getFfmpegPath(), ffmpegArgs...)
 

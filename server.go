@@ -195,7 +195,31 @@ func (a *App) handleAccountMode(w http.ResponseWriter, r *http.Request) {
 			dir := filepath.Join(home, ".config", "fxtube")
 			_ = os.MkdirAll(dir, 0755)
 			_ = os.WriteFile(filepath.Join(dir, "account_mode.txt"), []byte(req.Mode), 0644)
-			log.Printf("[FX Tube] Mode Akun diubah & disimpan ke: %s\n", a.accountMode)
+
+			if req.Mode == "firefox" {
+				a.profileMu.Lock()
+				a.googleProfile = GoogleProfile{
+					Name:       "Firefox YouTube",
+					Handle:     "@firefox_sync",
+					Avatar:     "https://www.gstatic.com/youtube/img/creator/avatar/creator_avatar_default.png",
+					ChannelURL: "https://www.youtube.com",
+					IsLoggedIn: true,
+				}
+				a.profileMu.Unlock()
+				_ = a.saveProfile()
+			} else if req.Mode == "guest" {
+				a.profileMu.Lock()
+				a.googleProfile = GoogleProfile{
+					Name:       "Tamu",
+					Handle:     "@guest",
+					Avatar:     "",
+					ChannelURL: "",
+					IsLoggedIn: false,
+				}
+				a.profileMu.Unlock()
+				_ = a.saveProfile()
+			}
+			log.Printf("[FX Tube] Mode Akun diubah & disimpan ke: %s (Profil diupdate)\n", a.accountMode)
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")

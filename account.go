@@ -56,9 +56,16 @@ func (a *App) saveProfile() error {
 	path := getProfileConfigPath()
 	a.profileMu.RLock()
 	data, err := json.MarshalIndent(a.googleProfile, "", "  ")
+	mode := a.accountMode
 	a.profileMu.RUnlock()
 	if err != nil {
 		return err
+	}
+	home, _ := os.UserHomeDir()
+	dir := filepath.Join(home, ".config", "fxtube")
+	_ = os.MkdirAll(dir, 0755)
+	if mode != "" {
+		_ = os.WriteFile(filepath.Join(dir, "account_mode.txt"), []byte(mode), 0644)
 	}
 	return os.WriteFile(path, data, 0644)
 }

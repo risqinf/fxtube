@@ -133,6 +133,7 @@ func (a *App) getVideoAvailableQualities(targetURL string) ([]string, error) {
 	defer func() { <-a.ytdlpSemaphore }()
 
 	args := []string{
+		"--extractor-args", "youtube:player_client=ios,android,web",
 		"--print", "%(formats.:.height)s",
 		"--socket-timeout", "10",
 		"--no-warnings",
@@ -213,13 +214,14 @@ func (a *App) resolveStreamURLs(targetURL, quality string) (StreamCacheItem, err
 		maxHeight = quality
 	}
 
-	// High compatibility format string with reliable fallbacks
+	// High compatibility format string with reliable fallbacks (prioritizing low CPU AVC1/H264 & format 18)
 	format := fmt.Sprintf(
-		"bestvideo[height<=?%s][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=?%s][vcodec^=avc1]+bestaudio/best[height<=?%s][vcodec^=avc1]/best[height<=?%s][ext=mp4]/bestvideo[height<=?%s]+bestaudio/best",
+		"bestvideo[height<=?%s][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=?%s][vcodec^=avc1]+bestaudio/best[height<=?%s][vcodec^=avc1]/18/best[height<=?%s][ext=mp4]/bestvideo[height<=?%s]+bestaudio/best",
 		maxHeight, maxHeight, maxHeight, maxHeight, maxHeight,
 	)
 
 	args := []string{
+		"--extractor-args", "youtube:player_client=ios,android,web",
 		"-g",
 		"-f", format,
 		"--socket-timeout", "12",
@@ -235,11 +237,12 @@ func (a *App) resolveStreamURLs(targetURL, quality string) (StreamCacheItem, err
 	cmd := exec.CommandContext(ctx, getYtDlpPath(), args...)
 	out, err := cmd.Output()
 
-	// If primary format string fails, try ultra-permissive fallback
+	// If primary format string fails, try ultra-permissive fallback with android client
 	if err != nil || len(out) == 0 {
 		fallbackArgs := []string{
+			"--extractor-args", "youtube:player_client=android,web",
 			"-g",
-			"-f", fmt.Sprintf("b[height<=?%s]/bv*[height<=?%s]+ba/b", maxHeight, maxHeight),
+			"-f", fmt.Sprintf("b[height<=?%s]/bv*[height<=?%s]+ba/18/b", maxHeight, maxHeight),
 			"--socket-timeout", "12",
 			"--no-warnings",
 		}
