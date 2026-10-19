@@ -1269,18 +1269,13 @@ function renderQualityButtons(qualities) {
   if (!container) return;
   container.innerHTML = '';
 
-  const list = (qualities && qualities.length > 0) ? qualities : ['144', '240', '360', '480', '720', '1080'];
+  const list = ['144', '240', '360', '480', '720', '1080'];
   currentAvailableQualities = list;
 
-  // If selected quality is not in available qualities, select closest lower or available
-  if (!list.includes(selectedQuality)) {
-    const selNum = parseInt(selectedQuality, 10);
-    const valid = list.map(q => parseInt(q, 10)).filter(q => q <= selNum);
-    if (valid.length > 0) {
-      selectedQuality = String(Math.max(...valid));
-    } else {
-      selectedQuality = list[0];
-    }
+  // Preserve user's explicitly selected quality from localStorage
+  const savedQuality = localStorage.getItem('fxtube_quality');
+  if (savedQuality && list.includes(savedQuality)) {
+    selectedQuality = savedQuality;
   }
 
   list.forEach(q => {
@@ -1419,12 +1414,10 @@ async function playEmbeddedVideo(v) {
     if (!player.src || player.src === '' || player.src.endsWith('/')) return;
     console.warn('HTML5 stream playback error for', v.id);
 
-    // Auto-retry with 360p format 18 before giving up
-    if (selectedQuality !== '360' && !player.dataset.retried) {
+    // Auto-retry with alternative stream without changing user's quality preference
+    if (!player.dataset.retried) {
       player.dataset.retried = 'true';
-      showToast('Koneksi lambat, mencoba resolusi 360p...', '#f59e0b');
-      selectedQuality = '360';
-      renderQualityButtons(currentAvailableQualities);
+      showToast('Koneksi lambat, mencoba resolusi alternatif...', '#f59e0b');
       const fallbackUrl = `/api/stream?url=${encodeURIComponent(v.url)}&quality=360&_t=${Date.now()}`;
       player.src = fallbackUrl;
       player.load();

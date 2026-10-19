@@ -114,7 +114,7 @@ func (a *App) startMpv(req PlayRequest) error {
 		// - vd-lavc-threads=4 utilizes all 4 threads of Core i7 M 620
 		// - demuxer-max-bytes=24MiB and demuxer-readahead-secs=10 saves memory & bandwidth
 		// - autofit and geometry provide a clean floating player
-		formatString := fmt.Sprintf("bestvideo[vcodec^=avc1][height<=?%s][fps<=?30]+bestaudio[acodec^=mp4a]/bestvideo[height<=?%s][fps<=?30]+bestaudio/best[height<=?%s]/best", maxHeight, maxHeight, maxHeight)
+		formatString := fmt.Sprintf("bestvideo[vcodec^=avc1][height<=?%s]+bestaudio[acodec^=mp4a]/bestvideo[height<=?%s]+bestaudio/best[height<=?%s]/best", maxHeight, maxHeight, maxHeight)
 		mpvArgs = append(mpvArgs,
 			"--hwdec=no",
 			"--vd-lavc-threads=4",

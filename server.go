@@ -148,13 +148,13 @@ func (a *App) handleVideoInfo(w http.ResponseWriter, r *http.Request) {
 	targetURL := normalizeYouTubeURL(r.URL.Query().Get("url"))
 	w.Header().Set("Content-Type", "application/json")
 	if targetURL == "" {
-		json.NewEncoder(w).Encode(map[string]interface{}{"qualities": []string{"360", "480", "720"}})
+		json.NewEncoder(w).Encode(map[string]interface{}{"qualities": []string{"144", "240", "360", "480", "720", "1080"}})
 		return
 	}
 
 	qualities, err := a.getVideoAvailableQualities(targetURL)
 	if err != nil || len(qualities) == 0 {
-		qualities = []string{"360", "480", "720"}
+		qualities = []string{"144", "240", "360", "480", "720", "1080"}
 	}
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"url":       targetURL,

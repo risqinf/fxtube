@@ -171,7 +171,7 @@ func (a *App) getVideoAvailableQualities(targetURL string) ([]string, error) {
 	out, err := cmd.Output()
 	if err != nil {
 		// Default fallback qualities if query fails
-		return []string{"360", "480", "720"}, nil
+		return []string{"144", "240", "360", "480", "720", "1080"}, nil
 	}
 
 	// Parse heights array like [144, 240, 360, 480, 720, 1080, 1440, 2160]
@@ -198,7 +198,7 @@ func (a *App) getVideoAvailableQualities(targetURL string) ([]string, error) {
 	}
 
 	if len(available) == 0 {
-		available = []string{"360", "480", "720"}
+		available = []string{"144", "240", "360", "480", "720", "1080"}
 	}
 
 	a.qualitiesMu.Lock()
@@ -236,14 +236,15 @@ func (a *App) resolveStreamURLs(targetURL, quality string) (StreamCacheItem, err
 		maxHeight = quality
 	}
 
-	// High compatibility format string with reliable fallbacks (prioritizing low CPU AVC1/H264 & format 18)
-	format := fmt.Sprintf(
-		"bestvideo[height<=?%s][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=?%s][vcodec^=avc1]+bestaudio/best[height<=?%s][vcodec^=avc1]/18/best[height<=?%s][ext=mp4]/bestvideo[height<=?%s]+bestaudio/best",
-		maxHeight, maxHeight, maxHeight, maxHeight, maxHeight,
-	)
+	// Strictly honor selected resolution: never force format 18 unless requested
+	var format string
+	if maxHeight == "360" {
+		format = "18/bestvideo[height<=?360]+bestaudio/best[height<=?360]/best"
+	} else {
+		format = fmt.Sprintf("bestvideo[height<=?%s][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=?%s]+bestaudio/best[height<=?%s]/best", maxHeight, maxHeight, maxHeight)
+	}
 
 	args := []string{
-		"--extractor-args", "youtube:player_client=ios,android,web",
 		"-g",
 		"-f", format,
 		"--socket-timeout", "12",
